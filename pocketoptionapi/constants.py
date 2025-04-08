@@ -132,6 +132,13 @@ ACTIVES = {
     'XPDUSD_otc': 401,
     'XPTUSD': 312,
     'XPTUSD_otc': 400,
+
+    # Stocks
+    'Microsoft_otc': 521,
+    'Facebook_OTC': 522,
+    'Tesla_otc': 523,
+    'Boeing_OTC': 524,
+    'American_Express_otc': 525
 }
 
 
