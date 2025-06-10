@@ -168,8 +168,7 @@ class Regions:
         "FINLAND": "wss://api-fin.po.market/socket.io/?EIO=4&transport=websocket",
         "SERVER3": "wss://api-c.po.market/socket.io/?EIO=4&transport=websocket",
         "ASIA": "wss://api-asia.po.market/socket.io/?EIO=4&transport=websocket",
-        "SERVER4": "wss://api-us-south.po.market/socket.io/?EIO=4&transport=websocket"
-    }
+        "SERVER4": "wss://api-us-south.po.market/socket.io/?EIO=4&transport=websocket"    }
     
     @classmethod
     def get_all(cls, randomize: bool = True) -> List[str]:
@@ -178,6 +177,11 @@ class Regions:
         if randomize:
             random.shuffle(urls)
         return urls
+    
+    @classmethod
+    def get_all_regions(cls) -> Dict[str, str]:
+        """Get all regions as a dictionary"""
+        return cls._REGIONS.copy()
     
     @classmethod
     def get_region(cls, region_name: str) -> str:

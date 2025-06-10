@@ -54,8 +54,8 @@ class AsyncPocketOptionClient:
         self.is_fast_history = is_fast_history
         self.persistent_connection = persistent_connection
         self.auto_reconnect = auto_reconnect
-        
-        # Parse SSID if it's a complete auth message
+          # Parse SSID if it's a complete auth message
+        self._original_demo = None  # Store original demo value from SSID
         if ssid.startswith('42["auth",'):
             self._parse_complete_ssid(ssid)
         else:
@@ -127,8 +127,7 @@ class AsyncPocketOptionClient:
             bool: True if connected successfully
         """
         logger.info("🔌 Connecting to PocketOption...")
-        
-        # Update persistent setting if provided
+          # Update persistent setting if provided
         if persistent is not None:
             self.persistent_connection = persistent
         
@@ -141,32 +140,44 @@ class AsyncPocketOptionClient:
         except Exception as e:
             logger.error(f"Connection failed: {e}")
             await self._error_monitor.record_error(
-                ErrorCategory.CONNECTION, 
-                ErrorSeverity.HIGH, 
-                f"Connection failed: {e}"
+                error_type="connection_failed",
+                severity=ErrorSeverity.HIGH,
+                category=ErrorCategory.CONNECTION,
+                message=f"Connection failed: {e}"
             )
             return False
 
     async def _start_regular_connection(self, regions: Optional[List[str]] = None) -> bool:
         """Start regular connection (existing behavior)"""
         logger.info("Starting regular connection...")
-        
-        # Use default regions if none provided
+          # Use appropriate regions based on demo mode
         if not regions:
-            regions = list(REGIONS.get_all_regions().keys())
-        
-        # Update connection stats
+            if self.is_demo:
+                # For demo mode, only use demo regions
+                demo_urls = REGIONS.get_demo_regions()
+                regions = []
+                all_regions = REGIONS.get_all_regions()
+                for name, url in all_regions.items():
+                    if url in demo_urls:
+                        regions.append(name)
+                logger.info(f"Demo mode: Using demo regions: {regions}")
+            else:
+                # For live mode, use all regions except demo
+                all_regions = REGIONS.get_all_regions()
+                regions = [name for name, url in all_regions.items() if "DEMO" not in name.upper()]
+                logger.info(f"Live mode: Using non-demo regions: {regions}")
+          # Update connection stats
         self._connection_stats['total_connections'] += 1
         self._connection_stats['connection_start_time'] = time.time()
         
         for region in regions:
             try:
-                region_data = REGIONS.get_region(region)
-                if not region_data:
+                region_url = REGIONS.get_region(region)
+                if not region_url:
                     continue
                     
-                urls = region_data.get('urls', [])
-                logger.info(f"Trying region: {region} with {len(urls)} URLs")
+                urls = [region_url]  # Convert single URL to list
+                logger.info(f"Trying region: {region} with URL: {region_url}")
                 
                 # Try to connect
                 ssid_message = self._format_session_message()
@@ -526,22 +537,21 @@ class AsyncPocketOptionClient:
                 'connection_info': self._websocket.connection_info
             })
             
-        return stats
-
-    # Private methods
+        return stats    # Private methods
     
     def _format_session_message(self) -> str:
         """Format session authentication message"""
-        if self._complete_ssid:
-            return self._complete_ssid
-        
-        # Create auth message from components
+        # Always create auth message from components using constructor parameters
+        # This ensures is_demo parameter is respected regardless of SSID format
         auth_data = {
             "session": self.session_id,
             "isDemo": 1 if self.is_demo else 0,
             "uid": self.uid,
             "platform": self.platform
         }
+        
+        if self.is_fast_history:
+            auth_data["isFastHistory"] = True
         
         return f'42["auth",{json.dumps(auth_data)}]'
 
@@ -550,15 +560,19 @@ class AsyncPocketOptionClient:
         try:
             # Extract JSON part
             json_start = ssid.find('{')
-            if json_start != -1:
-                json_part = ssid[json_start:]
+            json_end = ssid.rfind('}') + 1
+            if json_start != -1 and json_end > json_start:
+                json_part = ssid[json_start:json_end]
                 data = json.loads(json_part)
                 
                 self.session_id = data.get('session', '')
-                self.is_demo = bool(data.get('isDemo', 1))
+                # Store original demo value from SSID, but don't override the constructor parameter
+                self._original_demo = bool(data.get('isDemo', 1))
+                # Keep the is_demo value from constructor - don't override it
                 self.uid = data.get('uid', 0)
                 self.platform = data.get('platform', 1)
-                self._complete_ssid = ssid
+                # Don't store complete SSID - we'll reconstruct it with correct demo value
+                self._complete_ssid = None
         except Exception as e:
             logger.warning(f"Failed to parse SSID: {e}")
             self.session_id = ssid
