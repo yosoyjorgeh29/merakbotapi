@@ -708,8 +708,7 @@ class AsyncPocketOptionClient:
             placed_at=datetime.now(),
             expires_at=datetime.now() + timedelta(seconds=order.duration),
             error_message="Timeout waiting for server confirmation"
-        )
-          # Store it in active orders in case server responds later
+        )          # Store it in active orders in case server responds later
         self._active_orders[request_id] = fallback_result
         if self.enable_logging:
             logger.info(f"📝 Created fallback order result for {request_id}")
@@ -717,37 +716,30 @@ class AsyncPocketOptionClient:
 
     async def _request_candles(self, asset: str, timeframe: int, count: int, 
                               end_time: datetime) -> List[Candle]:
-        """Request candle data from server using the correct PocketOption format"""
+        """Request candle data from server using the correct changeSymbol format"""
         
-        # Convert end_time to timestamp (similar to original API)
-        end_timestamp = int(end_time.timestamp())
-        
-        # Create message data in the format expected by PocketOption
+        # Create message data in the format expected by PocketOption for real-time candles
         data = {
             "asset": str(asset),
-            "index": end_timestamp,
-            "offset": count,  # number of candles
-            "period": timeframe,  # timeframe in seconds
-            "time": end_timestamp  # end time timestamp
+            "period": timeframe  # timeframe in seconds
         }
         
-        # Create the full message
-        message_data = ["loadHistoryPeriod", data]
-        message = f'42["sendMessage",{json.dumps(message_data)}]'
+        # Create the full message using changeSymbol
+        message_data = ["changeSymbol", data]
+        message = f'42{json.dumps(message_data)}'
         
         if self.enable_logging:
-            logger.debug(f"Requesting candles: {message}")
+            logger.debug(f"Requesting candles with changeSymbol: {message}")
         
         # Create a future to wait for the response
         candle_future = asyncio.Future()
-        request_id = f"{asset}_{timeframe}_{end_timestamp}"
+        request_id = f"{asset}_{timeframe}"
         
         # Store the future for this request
         if not hasattr(self, '_candle_requests'):
             self._candle_requests = {}
         self._candle_requests[request_id] = candle_future
-        
-        # Send the request
+          # Send the request
         await self._websocket.send_message(message)
         
         try:
@@ -763,60 +755,61 @@ class AsyncPocketOptionClient:
             if request_id in self._candle_requests:
                 del self._candle_requests[request_id]
 
-    def _parse_candles_data(self, candles_data: List[Any]) -> List[Candle]:
+    def _parse_candles_data(self, candles_data: List[Any], asset: str, timeframe: int):
         """Parse candles data from server response"""
         candles = []
         
         try:
             if isinstance(candles_data, list):
                 for candle_data in candles_data:
-                    if isinstance(candle_data, (list, tuple)) and len(candle_data) >= 6:
-                        # Expected format: [timestamp, open, close, high, low, volume]
+                    if isinstance(candle_data, (list, tuple)) and len(candle_data) >= 5:
+                        # Server format: [timestamp, open, low, high, close]
+                        # Note: Server sends low/high swapped compared to standard OHLC format
+                        raw_high = float(candle_data[2])
+                        raw_low = float(candle_data[3])
+                        
+                        # Ensure high >= low by swapping if necessary
+                        actual_high = max(raw_high, raw_low)
+                        actual_low = min(raw_high, raw_low)
+                        
                         candle = Candle(
                             timestamp=datetime.fromtimestamp(candle_data[0]),
                             open=float(candle_data[1]),
-                            close=float(candle_data[2]),
-                            high=float(candle_data[3]),
-                            low=float(candle_data[4]),
-                            volume=float(candle_data[5]) if len(candle_data) > 5 else 0.0
+                            high=actual_high,
+                            low=actual_low,
+                            close=float(candle_data[4]),
+                            volume=float(candle_data[5]) if len(candle_data) > 5 else 0.0,
+                            asset=asset,
+                            timeframe=timeframe
                         )
                         candles.append(candle)
-                    elif isinstance(candle_data, dict):
-                        # Handle dict format
-                        candle = Candle(
-                            timestamp=datetime.fromtimestamp(candle_data.get('timestamp', 0)),
-                            open=float(candle_data.get('open', 0)),
-                            close=float(candle_data.get('close', 0)),
-                            high=float(candle_data.get('high', 0)),
-                            low=float(candle_data.get('low', 0)),
-                            volume=float(candle_data.get('volume', 0))
-                        )
-                        candles.append(candle)
+                        
         except Exception as e:
             if self.enable_logging:
                 logger.error(f"Error parsing candles data: {e}")
-        
+            
         return candles
-
-    # ...existing code...
 
     async def _on_json_data(self, data: Dict[str, Any]) -> None:
         """Handle detailed order data from JSON bytes messages"""
         if not isinstance(data, dict):
             return
-        
-        # Check if this is candles data response
-        if "history" in data and isinstance(data["history"], list):
+          # Check if this is candles data response
+        if "candles" in data and isinstance(data["candles"], list):
             # Find the corresponding candle request
             if hasattr(self, '_candle_requests'):
-                # Try to match the request - in a real implementation you'd need better matching
-                for request_id, future in list(self._candle_requests.items()):
-                    if not future.done():
-                        candles = self._parse_candles_data(data["history"])
-                        future.set_result(candles)
+                # Try to match the request based on asset and period
+                asset = data.get("asset")
+                period = data.get("period")
+                if asset and period:
+                    request_id = f"{asset}_{period}"
+                    if request_id in self._candle_requests and not self._candle_requests[request_id].done():
+                        candles = self._parse_candles_data(data["candles"], asset, period)
+                        self._candle_requests[request_id].set_result(candles)
                         if self.enable_logging:
-                            logger.success(f"✅ Candles data received: {len(candles)} candles")
-                        break
+                            logger.success(f"✅ Candles data received: {len(candles)} candles for {asset}")
+                        del self._candle_requests[request_id]
+                        return
             return
             
         # Check if this is detailed order data with requestId
@@ -881,24 +874,8 @@ class AsyncPocketOptionClient:
                         del self._active_orders[order_id]
                         
                         if self.enable_logging:
-                            logger.success(f"✅ Order {order_id} completed via JSON data: {status.value} - Profit: ${profit:.2f}")
-                        await self._emit_event('order_closed', result)
-
-    def _parse_candles_data(self, history_data: List[Dict]) -> List[Candle]:
-        """Parse candles data from history response"""
-        candles = []
-        for item in history_data:
-            if isinstance(item, dict):
-                candle = Candle(
-                    timestamp=datetime.fromtimestamp(item.get('time', 0)),
-                    open=float(item.get('open', 0)),
-                    high=float(item.get('high', 0)),
-                    low=float(item.get('low', 0)),
-                    close=float(item.get('close', 0)),
-                    volume=float(item.get('volume', 0))
-                )
-                candles.append(candle)
-        return candles
+                            logger.success(f"✅ Order {order_id} completed via JSON data: {status.value} - Profit: ${profit:.2f}")                        
+                            await self._emit_event('order_closed', result)
 
     async def _emit_event(self, event: str, data: Any) -> None:
         """Emit event to registered callbacks"""
@@ -954,32 +931,41 @@ class AsyncPocketOptionClient:
         await self._emit_event('order_closed', data)
 
     async def _on_stream_update(self, data: Dict[str, Any]) -> None:
-        """Handle stream update event"""
+        """Handle stream update event - includes real-time candle data"""
         if self.enable_logging:
             logger.debug(f"📡 Stream update: {data}")
+        
+        # Check if this is candle data from changeSymbol subscription
+        if 'asset' in data and 'period' in data and ('candles' in data or 'data' in data):
+            await self._handle_candles_stream(data)
+        
         await self._emit_event('stream_update', data)
 
     async def _on_candles_received(self, data: Dict[str, Any]) -> None:
         """Handle candles data received"""
         if self.enable_logging:
             logger.info(f"🕯️ Candles received with data: {type(data)}")
-        
-        # Check if we have pending candle requests
+          # Check if we have pending candle requests
         if hasattr(self, '_candle_requests') and self._candle_requests:
             # Parse the candles data
             try:
-                candles = self._parse_candles_data(data)
-                if self.enable_logging:
-                    logger.info(f"🕯️ Parsed {len(candles)} candles from response")
-                
-                # Resolve any pending futures (take the first one for now)
-                # In a more sophisticated implementation, we could match by asset/timeframe
+                # Get the first pending request to extract asset and timeframe info
                 for request_id, future in list(self._candle_requests.items()):
                     if not future.done():
-                        future.set_result(candles)
-                        if self.enable_logging:
-                            logger.debug(f"Resolved candle request: {request_id}")
-                        break
+                        # Extract asset and timeframe from request_id format: "asset_timeframe"
+                        parts = request_id.split('_')
+                        if len(parts) >= 2:
+                            asset = '_'.join(parts[:-1])  # Handle assets with underscores
+                            timeframe = int(parts[-1])
+                            
+                            candles = self._parse_candles_data(data, asset, timeframe)
+                            if self.enable_logging:
+                                logger.info(f"🕯️ Parsed {len(candles)} candles from response")
+                            
+                            future.set_result(candles)
+                            if self.enable_logging:
+                                logger.debug(f"Resolved candle request: {request_id}")
+                            break
                         
             except Exception as e:
                 if self.enable_logging:
@@ -997,3 +983,78 @@ class AsyncPocketOptionClient:
         if self.enable_logging:
             logger.warning("🔌 Disconnected from PocketOption")
         await self._emit_event('disconnected', data)
+
+    async def _handle_candles_stream(self, data: Dict[str, Any]) -> None:
+        """Handle candle data from stream updates (changeSymbol responses)"""
+        try:
+            asset = data.get('asset')
+            period = data.get('period')
+            
+            if not asset or not period:
+                return
+                
+            request_id = f"{asset}_{period}"
+            
+            if self.enable_logging:
+                logger.info(f"🕯️ Processing candle stream for {asset} ({period}s)")
+            
+            # Check if we have a pending request for this asset/period
+            if hasattr(self, '_candle_requests') and request_id in self._candle_requests:
+                future = self._candle_requests[request_id]
+                
+                if not future.done():
+                    # Parse candles from stream data
+                    candles = self._parse_stream_candles(data)
+                    if candles:
+                        future.set_result(candles)
+                        if self.enable_logging:
+                            logger.info(f"🕯️ Resolved candle request for {asset} with {len(candles)} candles")
+                    
+                # Clean up the request
+                del self._candle_requests[request_id]
+                
+        except Exception as e:
+            if self.enable_logging:
+                logger.error(f"❌ Error handling candles stream: {e}")
+
+    def _parse_stream_candles(self, stream_data: Dict[str, Any]) -> List[Candle]:
+        """Parse candles from stream update data (changeSymbol response)"""
+        candles = []
+        
+        try:
+            # Stream data might contain candles in different formats
+            candle_data = stream_data.get('data') or stream_data.get('candles') or []
+            
+            if isinstance(candle_data, list):
+                for item in candle_data:
+                    if isinstance(item, dict):
+                        # Dict format
+                        candle = Candle(
+                            timestamp=datetime.fromtimestamp(item.get('time', 0)),
+                            open=float(item.get('open', 0)),
+                            high=float(item.get('high', 0)),
+                            low=float(item.get('low', 0)),
+                            close=float(item.get('close', 0)),
+                            volume=float(item.get('volume', 0))
+                        )
+                        candles.append(candle)
+                    elif isinstance(item, (list, tuple)) and len(item) >= 6:
+                        # Array format: [timestamp, open, close, high, low, volume]
+                        candle = Candle(
+                            timestamp=datetime.fromtimestamp(item[0]),
+                            open=float(item[1]),
+                            high=float(item[3]),
+                            low=float(item[4]),
+                            close=float(item[2]),
+                            volume=float(item[5]) if len(item) > 5 else 0.0
+                        )
+                        candles.append(candle)
+            
+            # Sort by timestamp
+            candles.sort(key=lambda x: x.timestamp)
+            
+        except Exception as e:
+            if self.enable_logging:
+                logger.error(f"Error parsing stream candles: {e}")
+        
+        return candles
