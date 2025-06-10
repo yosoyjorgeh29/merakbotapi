@@ -19,15 +19,22 @@ async def main():
     balance = await api.get_balance()
     print(f"Balance: {balance}")
 
-    order_Data = await api.place_order(
+    # order_Data = await api.place_order(
+    #     asset="EURUSD_otc",
+    #     amount=1,
+    #     direction="call",
+    #     duration=5
+    # )
+    # print(f"OrderData: {order_Data}")
+    # order_info = await api.check_order_result(order_Data.order_id)
+    # print(f"OrderInfo: {order_info}")
+
+    candles = await api.get_candles(
         asset="EURUSD_otc",
-        amount=1,
-        direction="call",
-        duration=5
+        period=5,
+        count=100
     )
-    print(f"OrderData: {order_Data}")
-    order_info = await api.check_order_result(order_Data.order_id)
-    print(f"OrderInfo: {order_info}")
+    print(candles)
 
 if __name__ == "__main__":
     import asyncio
