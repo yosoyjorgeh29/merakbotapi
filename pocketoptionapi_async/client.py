@@ -441,8 +441,8 @@ class AsyncPocketOptionClient:
                 'close': candle.close,
                 'volume': candle.volume
             })
-        
         df = pd.DataFrame(data)
+        
         if not df.empty:
             df.set_index('timestamp', inplace=True)
             df.sort_index(inplace=True)
@@ -459,7 +459,16 @@ class AsyncPocketOptionClient:
         Returns:
             OrderResult: Order result or None if not found
         """
-        return self._order_results.get(order_id)
+        # First check active orders
+        if order_id in self._active_orders:
+            return self._active_orders[order_id]
+        
+        # Then check completed orders
+        if order_id in self._order_results:
+            return self._order_results[order_id]
+            
+        # Not found
+        return None
 
     async def get_active_orders(self) -> List[OrderResult]:
         """
