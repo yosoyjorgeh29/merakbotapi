@@ -349,18 +349,13 @@ class AsyncPocketOptionClient:
                 direction=direction,
                 duration=duration,
                 request_id=order_id  # Use request_id, not order_id
-            )
-            
-            # Send order
+            )            # Send order
             await self._send_order(order)
             
-            # Wait for result
-            result = await self._wait_for_order_result(order_id)
+            # Wait for result (this will either get the real server response or create a fallback)
+            result = await self._wait_for_order_result(order_id, order)
             
-            # Store active order
-            if result.status == OrderStatus.ACTIVE:
-                self._active_orders[result.order_id] = result
-            
+            # Don't store again - _wait_for_order_result already handles storage
             logger.info(f"Order placed: {result.order_id} - {result.status}")
             return result
             
@@ -641,12 +636,12 @@ class AsyncPocketOptionClient:
             raise InvalidParameterError(f"Invalid asset: {asset}")
         
         if amount < API_LIMITS['min_order_amount'] or amount > API_LIMITS['max_order_amount']:
-            raise InvalidParameterError(
-                f"Amount must be between {API_LIMITS['min_order_amount']} and {API_LIMITS['max_order_amount']}"
+            raise InvalidParameterError(                f"Amount must be between {API_LIMITS['min_order_amount']} and {API_LIMITS['max_order_amount']}"
             )
         
         if duration < API_LIMITS['min_duration'] or duration > API_LIMITS['max_duration']:
-            raise InvalidParameterError(                f"Duration must be between {API_LIMITS['min_duration']} and {API_LIMITS['max_duration']} seconds"
+            raise InvalidParameterError(
+                f"Duration must be between {API_LIMITS['min_duration']} and {API_LIMITS['max_duration']} seconds"
             )
 
     async def _send_order(self, order: Order) -> None:
@@ -658,24 +653,44 @@ class AsyncPocketOptionClient:
         message = f'42["openOrder",{{"asset":"{asset_name}","amount":{order.amount},"action":"{order.direction.value}","isDemo":{1 if self.is_demo else 0},"requestId":"{order.request_id}","optionType":100,"time":{order.duration}}}]'
         
         await self._websocket.send_message(message)
+        logger.debug(f"Sent order: {message}")
 
-    async def _wait_for_order_result(self, request_id: str, timeout: float = 10.0) -> OrderResult:
+    async def _wait_for_order_result(self, request_id: str, order: Order, timeout: float = 30.0) -> OrderResult:
         """Wait for order execution result"""
-        # This is a simplified implementation
-        # In practice, you'd wait for specific order events
-        await asyncio.sleep(1)  # Simulate waiting
+        start_time = time.time()
         
-        # Return a mock result for now
-        return OrderResult(
+        # Wait for order to appear in tracking system
+        while time.time() - start_time < timeout:
+            # Check if order was added to active orders (by _on_order_opened)
+            if request_id in self._active_orders:
+                logger.success(f"✅ Order {request_id} found in active tracking")
+                return self._active_orders[request_id]
+            
+            # Check if order went directly to results (failed or completed)
+            if request_id in self._order_results:
+                logger.info(f"📋 Order {request_id} found in completed results")
+                return self._order_results[request_id]
+                
+            await asyncio.sleep(0.2)  # Check every 200ms
+        
+        # If timeout, create a fallback result with the original order data
+        logger.warning(f"⏰ Order {request_id} timed out waiting for server response, creating fallback result")
+        fallback_result = OrderResult(
             order_id=request_id,
-            asset="EURUSD_otc",
-            amount=1.0,
-            direction=OrderDirection.CALL,
-            duration=60,
-            status=OrderStatus.ACTIVE,
+            asset=order.asset,
+            amount=order.amount,
+            direction=order.direction,
+            duration=order.duration,
+            status=OrderStatus.ACTIVE,  # Assume it's active since it was placed
             placed_at=datetime.now(),
-            expires_at=datetime.now() + timedelta(seconds=60)
+            expires_at=datetime.now() + timedelta(seconds=order.duration),
+            error_message="Timeout waiting for server confirmation"
         )
+        
+        # Store it in active orders in case server responds later
+        self._active_orders[request_id] = fallback_result
+        logger.info(f"📝 Created fallback order result for {request_id}")
+        return fallback_result
 
     async def _request_candles(self, asset: str, timeframe: int, count: int, 
                               end_time: datetime) -> List[Candle]:
@@ -748,8 +763,7 @@ class AsyncPocketOptionClient:
                     duration=int(data.get('time', 60)),
                     status=OrderStatus.ACTIVE,
                     placed_at=datetime.now(),
-                    expires_at=datetime.now() + timedelta(seconds=int(data.get('time', 60)))
-                )
+                    expires_at=datetime.now() + timedelta(seconds=int(data.get('time', 60)))                )
                 
                 # Add to active orders for tracking
                 self._active_orders[request_id] = order_result
@@ -761,31 +775,54 @@ class AsyncPocketOptionClient:
         """Handle order closed event"""
         logger.info(f"Order closed: {data}")
         
-        # Update order result
-        if 'id' in data:
-            order_id = str(data['id'])
-            if order_id in self._active_orders:
-                # Update order with result
-                active_order = self._active_orders[order_id]
-                profit = data.get('profit', 0)
-                
-                result = OrderResult(
-                    order_id=active_order.order_id,
-                    asset=active_order.asset,
-                    amount=active_order.amount,
-                    direction=active_order.direction,
-                    duration=active_order.duration,
-                    status=OrderStatus.WIN if profit > 0 else OrderStatus.LOSE,
-                    placed_at=active_order.placed_at,
-                    expires_at=active_order.expires_at,
-                    profit=profit,
-                    payout=data.get('payout')
-                )
-                
-                self._order_results[order_id] = result
-                del self._active_orders[order_id]
-                
-                await self._emit_event('order_closed', result)
+        # Extract order ID - try different field names the server might use
+        order_id = None
+        for id_field in ['id', 'requestId', 'orderId', 'order_id']:
+            if id_field in data:
+                order_id = str(data[id_field])
+                break
+        
+        if order_id and order_id in self._active_orders:
+            # Update order with result
+            active_order = self._active_orders[order_id]
+            profit = float(data.get('profit', 0))
+            
+            # Determine status based on profit
+            if profit > 0:
+                status = OrderStatus.WIN
+            elif profit < 0:
+                status = OrderStatus.LOSE
+            else:
+                # Check if there's a specific status field
+                status_str = data.get('status', '').lower()
+                if 'win' in status_str:
+                    status = OrderStatus.WIN
+                elif 'lose' in status_str or 'loss' in status_str:
+                    status = OrderStatus.LOSE
+                else:
+                    status = OrderStatus.LOSE  # Default for zero profit
+            
+            result = OrderResult(
+                order_id=active_order.order_id,
+                asset=active_order.asset,
+                amount=active_order.amount,
+                direction=active_order.direction,
+                duration=active_order.duration,
+                status=status,
+                placed_at=active_order.placed_at,
+                expires_at=active_order.expires_at,
+                profit=profit,
+                payout=data.get('payout')
+            )
+            
+            # Move from active to completed
+            self._order_results[order_id] = result
+            del self._active_orders[order_id]
+            
+            logger.success(f"✅ Order {order_id} completed: {status.value} - Profit: ${profit:.2f}")
+            await self._emit_event('order_closed', result)
+        else:
+            logger.warning(f"⚠️ Received order_closed for unknown order: {data}")
 
     async def _on_stream_update(self, data: Dict[str, Any]) -> None:
         """Handle stream update (time sync, etc.)"""
