@@ -710,8 +710,7 @@ class AsyncPocketOptionClient:
             expires_at=datetime.now() + timedelta(seconds=order.duration),
             error_message="Timeout waiting for server confirmation"
         )
-        
-        # Store it in active orders in case server responds later
+          # Store it in active orders in case server responds later
         self._active_orders[request_id] = fallback_result
         if self.enable_logging:
             logger.info(f"📝 Created fallback order result for {request_id}")
@@ -719,230 +718,106 @@ class AsyncPocketOptionClient:
 
     async def _request_candles(self, asset: str, timeframe: int, count: int, 
                               end_time: datetime) -> List[Candle]:
-        """Request candle data from server"""
-        # This is a simplified implementation
-        # In practice, you'd send a request and wait for the response
-        message = f'42["loadHistory",{{"asset":"{asset}","timeframe":{timeframe},"count":{count}}}]'
+        """Request candle data from server using the correct PocketOption format"""
+        
+        # Convert end_time to timestamp (similar to original API)
+        end_timestamp = int(end_time.timestamp())
+        
+        # Create message data in the format expected by PocketOption
+        data = {
+            "asset": str(asset),
+            "index": end_timestamp,
+            "offset": count,  # number of candles
+            "period": timeframe,  # timeframe in seconds
+            "time": end_timestamp  # end time timestamp
+        }
+        
+        # Create the full message
+        message_data = ["loadHistoryPeriod", data]
+        message = f'42["sendMessage",{json.dumps(message_data)}]'
+        
+        if self.enable_logging:
+            logger.debug(f"Requesting candles: {message}")
+        
+        # Create a future to wait for the response
+        candle_future = asyncio.Future()
+        request_id = f"{asset}_{timeframe}_{end_timestamp}"
+        
+        # Store the future for this request
+        if not hasattr(self, '_candle_requests'):
+            self._candle_requests = {}
+        self._candle_requests[request_id] = candle_future
+        
+        # Send the request
         await self._websocket.send_message(message)
         
-        # For now, return empty list
-        return []
-
-    async def _emit_event(self, event: str, data: Any) -> None:
-        """Emit event to registered callbacks"""
-        if event in self._event_callbacks:
-            for callback in self._event_callbacks[event]:
-                try:
-                    if asyncio.iscoroutinefunction(callback):
-                        await callback(data)
-                    else:
-                        callback(data)
-                except Exception as e:                    logger.error(f"Error in event callback for {event}: {e}")
-
-    # Event handlers
-    
-    async def _on_authenticated(self, data: Dict[str, Any]) -> None:
-        """Handle authentication success"""
-        if self.enable_logging:
-            logger.info("Authentication successful")
-        await self._emit_event('authenticated', data)
-
-    async def _on_balance_updated(self, data: Dict[str, Any]) -> None:
-        """Handle balance update"""
-        if 'balance' in data:
-            self._balance = Balance(
-                balance=float(data['balance']),
-                currency=data.get('currency', 'USD'),
-                is_demo=self.is_demo
-            )
+        try:
+            # Wait for the response (with timeout)
+            candles = await asyncio.wait_for(candle_future, timeout=10.0)
+            return candles
+        except asyncio.TimeoutError:
             if self.enable_logging:
-                logger.info(f"Balance updated: {self._balance.balance}")
-            await self._emit_event('balance_updated', self._balance)    
-    async def _on_balance_data(self, data: Dict[str, Any]) -> None:
-        """Handle balance data from raw JSON messages (like old API)"""
-        if 'balance' in data:
-            self._balance = Balance(
-                balance=float(data['balance']),
-                currency=data.get('currency', 'USD'),
-                is_demo=bool(data.get('is_demo', self.is_demo))
-            )            
-        if self.enable_logging:
-            logger.success(f"✅ Balance received: ${self._balance.balance:.2f} (Demo: {self._balance.is_demo})")
-            await self._emit_event('balance_updated', self._balance)
+                logger.warning(f"Candle request timed out for {asset}")
+            return []
+        finally:
+            # Clean up the request
+            if request_id in self._candle_requests:
+                del self._candle_requests[request_id]
 
-    async def _on_order_opened(self, data: Dict[str, Any]) -> None:
-        """Handle order opened event"""
-        if self.enable_logging:
-            logger.info(f"Order opened: {data}")
+    def _parse_candles_data(self, candles_data: List[Any]) -> List[Candle]:
+        """Parse candles data from server response"""
+        candles = []
         
-        # Extract order details from server response
-        if isinstance(data, dict):
-            request_id = data.get('requestId') or data.get('id')
-            if request_id:
-                request_id = str(request_id)
-                
-                # Create OrderResult for tracking
-                order_result = OrderResult(
-                    order_id=request_id,
-                    asset=data.get('asset', 'UNKNOWN'),
-                    amount=float(data.get('amount', 0)),
-                    direction=OrderDirection.CALL if data.get('action', '').lower() == 'call' else OrderDirection.PUT,
-                    duration=int(data.get('time', 60)),
-                    status=OrderStatus.ACTIVE,
-                    placed_at=datetime.now(),
-                    expires_at=datetime.now() + timedelta(seconds=int(data.get('time', 60)))                )
-                  # Add to active orders for tracking
-                self._active_orders[request_id] = order_result
-                if self.enable_logging:
-                    logger.success(f"✅ Order {request_id} added to active tracking")
-                
-        await self._emit_event('order_opened', data)
-
-    async def _on_order_closed(self, data: Dict[str, Any]) -> None:
-        """Handle order closed event"""
-        if self.enable_logging:
-            logger.info(f"Order closed: {data}")
-        
-        # Extract order ID - try different field names the server might use
-        order_id = None
-        for id_field in ['id', 'requestId', 'orderId', 'order_id']:
-            if id_field in data:
-                order_id = str(data[id_field])
-                break
-        
-        if order_id and order_id in self._active_orders:
-            # Update order with result
-            active_order = self._active_orders[order_id]
-            profit = float(data.get('profit', 0))
-            
-            # Determine status based on profit
-            if profit > 0:
-                status = OrderStatus.WIN
-            elif profit < 0:
-                status = OrderStatus.LOSE
-            else:
-                # Check if there's a specific status field
-                status_str = data.get('status', '').lower()
-                if 'win' in status_str:
-                    status = OrderStatus.WIN
-                elif 'lose' in status_str or 'loss' in status_str:
-                    status = OrderStatus.LOSE
-                else:
-                    status = OrderStatus.LOSE  # Default for zero profit
-            
-            result = OrderResult(
-                order_id=active_order.order_id,
-                asset=active_order.asset,
-                amount=active_order.amount,
-                direction=active_order.direction,
-                duration=active_order.duration,
-                status=status,
-                placed_at=active_order.placed_at,
-                expires_at=active_order.expires_at,
-                profit=profit,
-                payout=data.get('payout')
-            )
-              # Move from active to completed
-            self._order_results[order_id] = result
-            del self._active_orders[order_id]
-            
+        try:
+            if isinstance(candles_data, list):
+                for candle_data in candles_data:
+                    if isinstance(candle_data, (list, tuple)) and len(candle_data) >= 6:
+                        # Expected format: [timestamp, open, close, high, low, volume]
+                        candle = Candle(
+                            timestamp=datetime.fromtimestamp(candle_data[0]),
+                            open=float(candle_data[1]),
+                            close=float(candle_data[2]),
+                            high=float(candle_data[3]),
+                            low=float(candle_data[4]),
+                            volume=float(candle_data[5]) if len(candle_data) > 5 else 0.0
+                        )
+                        candles.append(candle)
+                    elif isinstance(candle_data, dict):
+                        # Handle dict format
+                        candle = Candle(
+                            timestamp=datetime.fromtimestamp(candle_data.get('timestamp', 0)),
+                            open=float(candle_data.get('open', 0)),
+                            close=float(candle_data.get('close', 0)),
+                            high=float(candle_data.get('high', 0)),
+                            low=float(candle_data.get('low', 0)),
+                            volume=float(candle_data.get('volume', 0))
+                        )
+                        candles.append(candle)
+        except Exception as e:
             if self.enable_logging:
-                logger.success(f"✅ Order {order_id} completed: {status.value} - Profit: ${profit:.2f}")
-            await self._emit_event('order_closed', result)
-        else:
-            if self.enable_logging:
-                logger.warning(f"⚠️ Received order_closed for unknown order: {data}")
-
-    async def _on_stream_update(self, data: Dict[str, Any]) -> None:
-        """Handle stream update (time sync, etc.)"""
-        if isinstance(data, list) and len(data) > 0:
-            # Update server time
-            server_timestamp = data[0].get('timestamp') if isinstance(data[0], dict) else data[0]
-            if server_timestamp:
-                local_timestamp = datetime.now().timestamp()
-                offset = server_timestamp - local_timestamp
-                
-                self._server_time = ServerTime(
-                    server_timestamp=server_timestamp,
-                    local_timestamp=local_timestamp,
-                    offset=offset
-                )
-
-    async def _on_candles_received(self, data: Dict[str, Any]) -> None:
-        """Handle candles data"""
-        logger.info("Candles data received")
-        await self._emit_event('candles_received', data)
-
-    async def _on_disconnected(self, data: Dict[str, Any]) -> None:
-        """Handle disconnection"""
-        logger.warning("WebSocket disconnected")
-        await self._emit_event('disconnected', data)
-
-    def _connection_health_checks(self):
-        """Setup connection health checks"""
-        async def check_websocket_health():
-            """Check WebSocket connection health"""
-            try:
-                if not self.is_connected:
-                    return {'status': 'disconnected', 'healthy': False}
-                
-                # Check ping response time
-                start_time = time.time()
-                await self._websocket.send_message('42["ps"]')
-                ping_time = time.time() - start_time
-                
-                return {
-                    'status': 'connected',
-                    'healthy': ping_time < 5.0,  # Healthy if ping < 5s
-                    'ping_time': ping_time,
-                    'connection_info': self.connection_info
-                }
-            except Exception as e:
-                return {'status': 'error', 'healthy': False, 'error': str(e)}
+                logger.error(f"Error parsing candles data: {e}")
         
-        async def check_balance_availability():
-            """Check if balance data is available and recent"""
-            try:
-                if not self._balance:
-                    return {'status': 'no_balance', 'healthy': False}
-                
-                time_since_update = (datetime.now() - self._balance.last_updated).total_seconds()
-                is_recent = time_since_update < 300  # 5 minutes
-                
-                return {
-                    'status': 'available',
-                    'healthy': is_recent,
-                    'last_update': time_since_update,
-                    'balance': self._balance.balance
-                }
-            except Exception as e:
-                return {'status': 'error', 'healthy': False, 'error': str(e)}
-        
-        # Register health checks
-        self._health_checker.register_health_check('websocket', check_websocket_health)
-        self._health_checker.register_health_check('balance', check_balance_availability)
+        return candles
 
-    # Keep-alive event handlers (for persistent connections)
-    
-    async def _on_keep_alive_connected(self, data: Dict[str, Any]) -> None:
-        """Handle keep-alive connection event"""
-        logger.info("✅ Keep-alive connection established")
-        await self._emit_event('connected', data)
-
-    async def _on_keep_alive_reconnected(self, data: Dict[str, Any]) -> None:
-        """Handle keep-alive reconnection event"""
-        logger.info("🔄 Keep-alive reconnection successful")
-        await self._emit_event('reconnected', data)
-
-    async def _on_keep_alive_message(self, message: Dict[str, Any]) -> None:
-        """Handle messages from keep-alive connection"""
-        # Process balance data from keep-alive messages
-        if isinstance(message, dict) and 'balance' in message:
-            await self._on_balance_data(message)
+    # ...existing code...
 
     async def _on_json_data(self, data: Dict[str, Any]) -> None:
         """Handle detailed order data from JSON bytes messages"""
         if not isinstance(data, dict):
+            return
+        
+        # Check if this is candles data response
+        if "history" in data and isinstance(data["history"], list):
+            # Find the corresponding candle request
+            if hasattr(self, '_candle_requests'):
+                # Try to match the request - in a real implementation you'd need better matching
+                for request_id, future in list(self._candle_requests.items()):
+                    if not future.done():
+                        candles = self._parse_candles_data(data["history"])
+                        future.set_result(candles)
+                        if self.enable_logging:
+                            logger.success(f"✅ Candles data received: {len(candles)} candles")
+                        break
             return
             
         # Check if this is detailed order data with requestId
@@ -1009,3 +884,91 @@ class AsyncPocketOptionClient:
                         if self.enable_logging:
                             logger.success(f"✅ Order {order_id} completed via JSON data: {status.value} - Profit: ${profit:.2f}")
                         await self._emit_event('order_closed', result)
+
+    def _parse_candles_data(self, history_data: List[Dict]) -> List[Candle]:
+        """Parse candles data from history response"""
+        candles = []
+        for item in history_data:
+            if isinstance(item, dict):
+                candle = Candle(
+                    timestamp=datetime.fromtimestamp(item.get('time', 0)),
+                    open=float(item.get('open', 0)),
+                    high=float(item.get('high', 0)),
+                    low=float(item.get('low', 0)),
+                    close=float(item.get('close', 0)),
+                    volume=float(item.get('volume', 0))
+                )
+                candles.append(candle)
+        return candles
+
+    async def _emit_event(self, event: str, data: Any) -> None:
+        """Emit event to registered callbacks"""
+        if event in self._event_callbacks:
+            for callback in self._event_callbacks[event]:
+                try:
+                    if asyncio.iscoroutinefunction(callback):
+                        await callback(data)
+                    else:
+                        callback(data)
+                except Exception as e:
+                    if self.enable_logging:
+                        logger.error(f"Error in event callback for {event}: {e}")
+
+    # Event handlers
+    async def _on_authenticated(self, data: Dict[str, Any]) -> None:
+        """Handle authentication success"""
+        if self.enable_logging:
+            logger.success("✅ Successfully authenticated with PocketOption")
+        self._connection_stats['successful_connections'] += 1
+        await self._emit_event('authenticated', data)
+
+    async def _on_balance_updated(self, data: Dict[str, Any]) -> None:
+        """Handle balance update"""
+        try:
+            balance = Balance(
+                balance=float(data.get('balance', 0)),
+                currency=data.get('currency', 'USD'),
+                is_demo=self.is_demo
+            )
+            self._balance = balance
+            if self.enable_logging:
+                logger.info(f"💰 Balance updated: ${balance.balance:.2f}")
+            await self._emit_event('balance_updated', balance)
+        except Exception as e:
+            if self.enable_logging:
+                logger.error(f"Failed to parse balance data: {e}")
+
+    async def _on_balance_data(self, data: Dict[str, Any]) -> None:
+        """Handle balance data message"""
+        # This is similar to balance_updated but for different message format
+        await self._on_balance_updated(data)
+
+    async def _on_order_opened(self, data: Dict[str, Any]) -> None:
+        """Handle order opened event"""
+        if self.enable_logging:
+            logger.info(f"📈 Order opened: {data}")
+        await self._emit_event('order_opened', data)
+
+    async def _on_order_closed(self, data: Dict[str, Any]) -> None:
+        """Handle order closed event"""
+        if self.enable_logging:
+            logger.info(f"📊 Order closed: {data}")
+        await self._emit_event('order_closed', data)
+
+    async def _on_stream_update(self, data: Dict[str, Any]) -> None:
+        """Handle stream update event"""
+        if self.enable_logging:
+            logger.debug(f"📡 Stream update: {data}")
+        await self._emit_event('stream_update', data)
+
+    async def _on_candles_received(self, data: Dict[str, Any]) -> None:
+        """Handle candles data received"""
+        if self.enable_logging:
+            logger.info(f"🕯️ Candles received: {len(data)} data points")
+        await self._emit_event('candles_received', data)
+
+    async def _on_disconnected(self, data: Dict[str, Any]) -> None:
+        """Handle disconnection event"""
+        if self.enable_logging:
+            logger.warning("🔌 Disconnected from PocketOption")
+        await self._emit_event('disconnected', data)

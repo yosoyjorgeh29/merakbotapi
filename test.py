@@ -31,7 +31,7 @@ async def main():
 
     candles = await api.get_candles(
         asset="EURUSD_otc",
-        period=5,
+        timeframe=5,
         count=100
     )
     print(candles)
