@@ -85,11 +85,10 @@ class AsyncPocketOptionClient:
         
         # Add handler for JSON data messages (contains detailed order data)
         self._websocket.add_event_handler('json_data', self._on_json_data)
-        
-        # Enhanced monitoring and error handling
+          # Enhanced monitoring and error handling
+        from .monitoring import error_monitor, health_checker
         self._error_monitor = error_monitor
         self._health_checker = health_checker
-        self._connection_health_checks()
         
         # Performance tracking
         self._operation_metrics: Dict[str, List[float]] = defaultdict(list)
@@ -920,8 +919,7 @@ class AsyncPocketOptionClient:
         if self.enable_logging:
             logger.success("✅ Successfully authenticated with PocketOption")
         self._connection_stats['successful_connections'] += 1
-        await self._emit_event('authenticated', data)
-
+        await self._emit_event('authenticated', data)    
     async def _on_balance_updated(self, data: Dict[str, Any]) -> None:
         """Handle balance update"""
         try:
@@ -964,7 +962,34 @@ class AsyncPocketOptionClient:
     async def _on_candles_received(self, data: Dict[str, Any]) -> None:
         """Handle candles data received"""
         if self.enable_logging:
-            logger.info(f"🕯️ Candles received: {len(data)} data points")
+            logger.info(f"🕯️ Candles received with data: {type(data)}")
+        
+        # Check if we have pending candle requests
+        if hasattr(self, '_candle_requests') and self._candle_requests:
+            # Parse the candles data
+            try:
+                candles = self._parse_candles_data(data)
+                if self.enable_logging:
+                    logger.info(f"🕯️ Parsed {len(candles)} candles from response")
+                
+                # Resolve any pending futures (take the first one for now)
+                # In a more sophisticated implementation, we could match by asset/timeframe
+                for request_id, future in list(self._candle_requests.items()):
+                    if not future.done():
+                        future.set_result(candles)
+                        if self.enable_logging:
+                            logger.debug(f"Resolved candle request: {request_id}")
+                        break
+                        
+            except Exception as e:
+                if self.enable_logging:
+                    logger.error(f"Error processing candles data: {e}")
+                # Resolve futures with empty result
+                for request_id, future in list(self._candle_requests.items()):
+                    if not future.done():
+                        future.set_result([])
+                        break
+        
         await self._emit_event('candles_received', data)
 
     async def _on_disconnected(self, data: Dict[str, Any]) -> None:
