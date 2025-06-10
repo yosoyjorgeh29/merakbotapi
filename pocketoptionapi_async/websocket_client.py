@@ -411,15 +411,49 @@ class AsyncWebSocketClient:
             except Exception as e:
                 logger.error(f"Ping failed: {e}")
                 break
-    
     async def _process_message(self, message) -> None:
         """
-        Process incoming WebSocket message
+        Process incoming WebSocket message (following old API pattern exactly)
         
         Args:
             message: Raw message from WebSocket (bytes or str)
         """
         try:
+            # Handle bytes messages first (like old API) - these contain balance data
+            if isinstance(message, bytes):
+                decoded_message = message.decode('utf-8')
+                try:
+                    # Try to parse as JSON (like old API)
+                    json_data = json.loads(decoded_message)
+                    logger.debug(f"Received JSON bytes message: {json_data}")
+                    
+                    # Handle balance data (like old API)
+                    if "balance" in json_data:
+                        balance_data = {
+                            'balance': json_data['balance'],
+                            'currency': 'USD',  # Default currency
+                            'is_demo': bool(json_data.get('isDemo', 1))
+                        }
+                        if "uid" in json_data:
+                            balance_data['uid'] = json_data['uid']
+                        
+                        logger.info(f"Balance data received: {balance_data}")
+                        await self._emit_event('balance_data', balance_data)
+                    
+                    # Handle order data (like old API)
+                    elif "requestId" in json_data and json_data["requestId"] == 'buy':
+                        await self._emit_event('order_data', json_data)
+                    
+                    # Handle other JSON data
+                    else:
+                        await self._emit_event('json_data', json_data)
+                        
+                except json.JSONDecodeError:
+                    # If not JSON, treat as regular bytes message
+                    logger.debug(f"Non-JSON bytes message: {decoded_message[:100]}...")
+                    
+                return
+            
             # Convert bytes to string if needed
             if isinstance(message, bytes):
                 message = message.decode('utf-8')
