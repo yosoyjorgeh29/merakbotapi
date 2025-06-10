@@ -12,7 +12,8 @@ from loguru import logger
 from .models import Candle, OrderResult
 
 
-def format_session_id(session_id: str, is_demo: bool = True, uid: int = 0, platform: int = 1) -> str:
+def format_session_id(session_id: str, is_demo: bool = True, uid: int = 0, 
+                      platform: int = 1, is_fast_history: bool = True) -> str:
     """
     Format session ID for authentication
     
@@ -20,7 +21,8 @@ def format_session_id(session_id: str, is_demo: bool = True, uid: int = 0, platf
         session_id: Raw session ID
         is_demo: Whether this is a demo account
         uid: User ID
-        platform: Platform identifier
+        platform: Platform identifier (1=web, 3=mobile)
+        is_fast_history: Enable fast history loading
         
     Returns:
         str: Formatted session message
@@ -33,6 +35,9 @@ def format_session_id(session_id: str, is_demo: bool = True, uid: int = 0, platf
         "uid": uid,
         "platform": platform
     }
+    
+    if is_fast_history:
+        auth_data["isFastHistory"] = True
     
     return f'42["auth",{json.dumps(auth_data)}]'
 
