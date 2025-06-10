@@ -89,8 +89,8 @@ class Order(BaseModel):
     
     @validator('duration')
     def duration_must_be_valid(cls, v):
-        if v < 60:  # minimum 60 seconds
-            raise ValueError('Duration must be at least 60 seconds')
+        if v < 5:  # minimum 5 seconds
+            raise ValueError('Duration must be at least 5 seconds')
         return v
 
 class OrderResult(BaseModel):
