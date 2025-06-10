@@ -222,7 +222,7 @@ CONNECTION_SETTINGS = {
 API_LIMITS = {
     'min_order_amount': 1.0,
     'max_order_amount': 50000.0,
-    'min_duration': 60,    # seconds
+    'min_duration': 5,    # seconds
     'max_duration': 43200, # 12 hours in seconds
     'max_concurrent_orders': 10,
     'rate_limit': 100,     # requests per minute
