@@ -132,7 +132,7 @@ class AsyncPocketOptionClient:
         from connection_keep_alive import ConnectionKeepAlive
         
         # Create keep-alive manager
-        complete_ssid = self._format_session_message()
+        complete_ssid = self.raw_ssid
         self._keep_alive_manager = ConnectionKeepAlive(complete_ssid, self.is_demo)
         
         # Add event handlers
@@ -542,10 +542,6 @@ class AsyncPocketOptionClient:
     
     def _format_session_message(self) -> str:
         """Format session authentication message"""
-        # If we have a complete SSID starting with the raw_ssid, use it directly
-        if self.raw_ssid.startswith('42["auth",'):
-            logger.debug("Using complete SSID as provided")
-            return self.raw_ssid
         
         # If we already have a parsed complete SSID, return it
         if hasattr(self, '_complete_ssid') and self._complete_ssid:
@@ -553,12 +549,7 @@ class AsyncPocketOptionClient:
             return self._complete_ssid
         
         # Otherwise, format from components
-        auth_data = {
-            "session": getattr(self, 'session_id', self.raw_ssid),
-            "isDemo": 1 if self.is_demo else 0,
-            "uid": self.uid,
-            "platform": self.platform
-        }
+        auth_data = self.raw_ssid
         
         # Add optional parameters
         if self.is_fast_history:
@@ -594,15 +585,40 @@ class AsyncPocketOptionClient:
             self._complete_ssid = None
     
     async def _wait_for_authentication(self, timeout: float = 10.0) -> None:
-        """Wait for authentication to complete"""
-        start_time = asyncio.get_event_loop().time()
+        """Wait for authentication to complete (like old API)"""
+        logger.debug("Waiting for authentication...")
         
-        while (asyncio.get_event_loop().time() - start_time) < timeout:
-            await asyncio.sleep(0.1)
-            # Check if authenticated (this would be set by event handler)
-            # For now, just wait a bit and assume success
+        # Create an event to wait for authentication
+        auth_event = asyncio.Event()
+        auth_error = None
         
-        await asyncio.sleep(2)  # Give time for initial data
+        def on_authenticated(data):
+            logger.success("✅ Authentication successful")
+            auth_event.set()
+        
+        def on_auth_error(data):
+            nonlocal auth_error
+            auth_error = data.get('message', 'Authentication failed')
+            logger.error(f"❌ Authentication failed: {auth_error}")
+            auth_event.set()
+        
+        # Add event handlers
+        self._websocket.add_event_handler('authenticated', on_authenticated)
+        self._websocket.add_event_handler('auth_error', on_auth_error)
+        
+        try:
+            # Wait for authentication with timeout
+            await asyncio.wait_for(auth_event.wait(), timeout=timeout)
+            
+            if auth_error:
+                raise AuthenticationError(auth_error)
+                
+        except asyncio.TimeoutError:
+            raise AuthenticationError("Authentication timeout - no response from server")
+        finally:
+            # Clean up event handlers
+            self._websocket.remove_event_handler('authenticated', on_authenticated)
+            self._websocket.remove_event_handler('auth_error', on_auth_error)
     
     async def _initialize_data(self) -> None:
         """Initialize client data after connection"""

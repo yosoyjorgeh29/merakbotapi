@@ -174,8 +174,7 @@ class AsyncWebSocketClient:
                     ),
                     timeout=10.0
                 )
-                
-                # Update connection info
+                  # Update connection info
                 region = self._extract_region_from_url(url)
                 self.connection_info = ConnectionInfo(
                     url=url,
@@ -186,14 +185,13 @@ class AsyncWebSocketClient:
                 )
                 
                 logger.info(f"Connected to {region} region successfully")
-                
-                # Start message handling
+                  # Start message handling
                 self._running = True
                 
-                # Send initial handshake
+                # Send initial handshake and wait for completion
                 await self._send_handshake(ssid)
                 
-                # Start background tasks
+                # Start background tasks after handshake is complete
                 await self._start_background_tasks()
                 
                 self._reconnect_attempts = 0
@@ -344,27 +342,50 @@ class AsyncWebSocketClient:
         if event in self._event_handlers:
             try:
                 self._event_handlers[event].remove(handler)
-            except ValueError:
-                pass
+            except ValueError:                pass
     
     async def _send_handshake(self, ssid: str) -> None:
-        """Send initial handshake messages"""
-        # Wait for initial connection message
-        await asyncio.sleep(0.5)
-        
-        # Send handshake sequence
-        await self.send_message("40")
-        await asyncio.sleep(0.1)
-        await self.send_message(ssid)
-        
-        logger.debug("Handshake completed")
-    
+        """Send initial handshake messages (following old API pattern exactly)"""
+        try:
+            # Wait for initial connection message with "0" and "sid" (like old API)
+            logger.debug("Waiting for initial handshake message...")
+            initial_message = await asyncio.wait_for(self.websocket.recv(), timeout=10.0)
+            logger.debug(f"Received initial: {initial_message}")
+            
+            # Check if it's the expected initial message format
+            if initial_message.startswith('0') and 'sid' in initial_message:
+                # Send "40" response (like old API)
+                await self.send_message("40")
+                logger.debug("Sent '40' response")
+                
+                # Wait for connection establishment message with "40" and "sid"
+                conn_message = await asyncio.wait_for(self.websocket.recv(), timeout=10.0)
+                logger.debug(f"Received connection: {conn_message}")
+                
+                # Check if it's the expected connection message format
+                if conn_message.startswith('40') and 'sid' in conn_message:
+                    # Send SSID authentication (like old API)
+                    await self.send_message(ssid)
+                    logger.debug("Sent SSID authentication")
+                else:
+                    logger.warning(f"Unexpected connection message format: {conn_message}")
+            else:
+                logger.warning(f"Unexpected initial message format: {initial_message}")
+            
+            logger.debug("Handshake sequence completed")
+            
+        except asyncio.TimeoutError:
+            logger.error("Handshake timeout - server didn't respond as expected")
+            raise WebSocketError("Handshake timeout")
+        except Exception as e:
+            logger.error(f"Handshake failed: {e}")
+            raise
     async def _start_background_tasks(self) -> None:
         """Start background tasks"""
         # Start ping task
         self._ping_task = asyncio.create_task(self._ping_loop())
         
-        # Start message receiving task
+        # Start message receiving task (only start it once here)
         asyncio.create_task(self.receive_messages())
     
     async def _ping_loop(self) -> None:
