@@ -32,7 +32,8 @@ class AsyncPocketOptionClient:
     
     def __init__(self, ssid: str, is_demo: bool = True, region: Optional[str] = None, 
                  uid: int = 0, platform: int = 1, is_fast_history: bool = True,
-                 persistent_connection: bool = False, auto_reconnect: bool = True):
+                 persistent_connection: bool = False, auto_reconnect: bool = True, 
+                 enable_logging: bool = True):
         """
         Initialize async PocketOption client with enhanced monitoring
         
@@ -45,6 +46,7 @@ class AsyncPocketOptionClient:
             is_fast_history: Enable fast history loading
             persistent_connection: Enable persistent connection with keep-alive (like old API)
             auto_reconnect: Enable automatic reconnection on disconnection
+            enable_logging: Enable detailed logging (default: True)
         """
         self.raw_ssid = ssid
         self.is_demo = is_demo
@@ -54,6 +56,12 @@ class AsyncPocketOptionClient:
         self.is_fast_history = is_fast_history
         self.persistent_connection = persistent_connection
         self.auto_reconnect = auto_reconnect
+        self.enable_logging = enable_logging
+        
+        # Configure logging based on preference
+        if not enable_logging:
+            logger.remove()
+            logger.add(lambda msg: None, level="CRITICAL")  # Disable most logging
           # Parse SSID if it's a complete auth message
         self._original_demo = None  # Store original demo value from SSID
         if ssid.startswith('42["auth",'):
@@ -72,9 +80,11 @@ class AsyncPocketOptionClient:
         self._candles_cache: Dict[str, List[Candle]] = {}
         self._server_time: Optional[ServerTime] = None
         self._event_callbacks: Dict[str, List[Callable]] = defaultdict(list)
-        
-        # Setup event handlers for websocket messages
+          # Setup event handlers for websocket messages
         self._setup_event_handlers()
+        
+        # Add handler for JSON data messages (contains detailed order data)
+        self._websocket.add_event_handler('json_data', self._on_json_data)
         
         # Enhanced monitoring and error handling
         self._error_monitor = error_monitor
@@ -102,7 +112,7 @@ class AsyncPocketOptionClient:
             'connection_start_time': None
         }
         
-        logger.info(f"Initialized PocketOption client (demo={is_demo}, uid={self.uid}, persistent={persistent_connection}) with enhanced monitoring")
+        logger.info(f"Initialized PocketOption client (demo={is_demo}, uid={self.uid}, persistent={persistent_connection}) with enhanced monitoring" if enable_logging else "")
 
     def _setup_event_handlers(self):
         """Setup WebSocket event handlers"""
@@ -651,9 +661,9 @@ class AsyncPocketOptionClient:
         
         # Create the message in the correct PocketOption format
         message = f'42["openOrder",{{"asset":"{asset_name}","amount":{order.amount},"action":"{order.direction.value}","isDemo":{1 if self.is_demo else 0},"requestId":"{order.request_id}","optionType":100,"time":{order.duration}}}]'
-        
         await self._websocket.send_message(message)
-        logger.debug(f"Sent order: {message}")
+        if self.enable_logging:
+            logger.debug(f"Sent order: {message}")
 
     async def _wait_for_order_result(self, request_id: str, order: Order, timeout: float = 30.0) -> OrderResult:
         """Wait for order execution result"""
@@ -661,20 +671,34 @@ class AsyncPocketOptionClient:
         
         # Wait for order to appear in tracking system
         while time.time() - start_time < timeout:
-            # Check if order was added to active orders (by _on_order_opened)
+            # Check if order was added to active orders (by _on_order_opened or _on_json_data)
             if request_id in self._active_orders:
-                logger.success(f"✅ Order {request_id} found in active tracking")
+                if self.enable_logging:
+                    logger.success(f"✅ Order {request_id} found in active tracking")
                 return self._active_orders[request_id]
             
             # Check if order went directly to results (failed or completed)
             if request_id in self._order_results:
-                logger.info(f"📋 Order {request_id} found in completed results")
+                if self.enable_logging:
+                    logger.info(f"📋 Order {request_id} found in completed results")
                 return self._order_results[request_id]
                 
             await asyncio.sleep(0.2)  # Check every 200ms
         
+        # Check one more time before creating fallback
+        if request_id in self._active_orders:
+            if self.enable_logging:
+                logger.success(f"✅ Order {request_id} found in active tracking (final check)")
+            return self._active_orders[request_id]
+        
+        if request_id in self._order_results:
+            if self.enable_logging:
+                logger.info(f"📋 Order {request_id} found in completed results (final check)")
+            return self._order_results[request_id]
+        
         # If timeout, create a fallback result with the original order data
-        logger.warning(f"⏰ Order {request_id} timed out waiting for server response, creating fallback result")
+        if self.enable_logging:
+            logger.warning(f"⏰ Order {request_id} timed out waiting for server response, creating fallback result")
         fallback_result = OrderResult(
             order_id=request_id,
             asset=order.asset,
@@ -689,7 +713,8 @@ class AsyncPocketOptionClient:
         
         # Store it in active orders in case server responds later
         self._active_orders[request_id] = fallback_result
-        logger.info(f"📝 Created fallback order result for {request_id}")
+        if self.enable_logging:
+            logger.info(f"📝 Created fallback order result for {request_id}")
         return fallback_result
 
     async def _request_candles(self, asset: str, timeframe: int, count: int, 
@@ -712,14 +737,14 @@ class AsyncPocketOptionClient:
                         await callback(data)
                     else:
                         callback(data)
-                except Exception as e:
-                    logger.error(f"Error in event callback for {event}: {e}")
+                except Exception as e:                    logger.error(f"Error in event callback for {event}: {e}")
 
     # Event handlers
     
     async def _on_authenticated(self, data: Dict[str, Any]) -> None:
         """Handle authentication success"""
-        logger.info("Authentication successful")
+        if self.enable_logging:
+            logger.info("Authentication successful")
         await self._emit_event('authenticated', data)
 
     async def _on_balance_updated(self, data: Dict[str, Any]) -> None:
@@ -730,23 +755,25 @@ class AsyncPocketOptionClient:
                 currency=data.get('currency', 'USD'),
                 is_demo=self.is_demo
             )
-            logger.info(f"Balance updated: {self._balance.balance}")
-            await self._emit_event('balance_updated', self._balance)
-
+            if self.enable_logging:
+                logger.info(f"Balance updated: {self._balance.balance}")
+            await self._emit_event('balance_updated', self._balance)    
     async def _on_balance_data(self, data: Dict[str, Any]) -> None:
         """Handle balance data from raw JSON messages (like old API)"""
-        if 'balance' in data:            
+        if 'balance' in data:
             self._balance = Balance(
                 balance=float(data['balance']),
                 currency=data.get('currency', 'USD'),
                 is_demo=bool(data.get('is_demo', self.is_demo))
-            )
+            )            
+        if self.enable_logging:
             logger.success(f"✅ Balance received: ${self._balance.balance:.2f} (Demo: {self._balance.is_demo})")
             await self._emit_event('balance_updated', self._balance)
 
     async def _on_order_opened(self, data: Dict[str, Any]) -> None:
         """Handle order opened event"""
-        logger.info(f"Order opened: {data}")
+        if self.enable_logging:
+            logger.info(f"Order opened: {data}")
         
         # Extract order details from server response
         if isinstance(data, dict):
@@ -764,16 +791,17 @@ class AsyncPocketOptionClient:
                     status=OrderStatus.ACTIVE,
                     placed_at=datetime.now(),
                     expires_at=datetime.now() + timedelta(seconds=int(data.get('time', 60)))                )
-                
-                # Add to active orders for tracking
+                  # Add to active orders for tracking
                 self._active_orders[request_id] = order_result
-                logger.success(f"✅ Order {request_id} added to active tracking")
+                if self.enable_logging:
+                    logger.success(f"✅ Order {request_id} added to active tracking")
                 
         await self._emit_event('order_opened', data)
 
     async def _on_order_closed(self, data: Dict[str, Any]) -> None:
         """Handle order closed event"""
-        logger.info(f"Order closed: {data}")
+        if self.enable_logging:
+            logger.info(f"Order closed: {data}")
         
         # Extract order ID - try different field names the server might use
         order_id = None
@@ -814,15 +842,16 @@ class AsyncPocketOptionClient:
                 profit=profit,
                 payout=data.get('payout')
             )
-            
-            # Move from active to completed
+              # Move from active to completed
             self._order_results[order_id] = result
             del self._active_orders[order_id]
             
-            logger.success(f"✅ Order {order_id} completed: {status.value} - Profit: ${profit:.2f}")
+            if self.enable_logging:
+                logger.success(f"✅ Order {order_id} completed: {status.value} - Profit: ${profit:.2f}")
             await self._emit_event('order_closed', result)
         else:
-            logger.warning(f"⚠️ Received order_closed for unknown order: {data}")
+            if self.enable_logging:
+                logger.warning(f"⚠️ Received order_closed for unknown order: {data}")
 
     async def _on_stream_update(self, data: Dict[str, Any]) -> None:
         """Handle stream update (time sync, etc.)"""
@@ -910,3 +939,73 @@ class AsyncPocketOptionClient:
         # Process balance data from keep-alive messages
         if isinstance(message, dict) and 'balance' in message:
             await self._on_balance_data(message)
+
+    async def _on_json_data(self, data: Dict[str, Any]) -> None:
+        """Handle detailed order data from JSON bytes messages"""
+        if not isinstance(data, dict):
+            return
+            
+        # Check if this is detailed order data with requestId
+        if "requestId" in data and "asset" in data and "amount" in data:
+            request_id = str(data["requestId"])
+            
+            # If this is a new order, add it to tracking
+            if request_id not in self._active_orders and request_id not in self._order_results:
+                order_result = OrderResult(
+                    order_id=request_id,
+                    asset=data.get('asset', 'UNKNOWN'),
+                    amount=float(data.get('amount', 0)),
+                    direction=OrderDirection.CALL if data.get('command', 0) == 0 else OrderDirection.PUT,
+                    duration=int(data.get('time', 60)),
+                    status=OrderStatus.ACTIVE,
+                    placed_at=datetime.now(),
+                    expires_at=datetime.now() + timedelta(seconds=int(data.get('time', 60))),
+                    profit=float(data.get('profit', 0)) if 'profit' in data else None,
+                    payout=data.get('payout')
+                )
+                
+                # Add to active orders
+                self._active_orders[request_id] = order_result
+                if self.enable_logging:
+                    logger.success(f"✅ Order {request_id} added to tracking from JSON data")
+                
+                await self._emit_event('order_opened', data)
+                
+        # Check if this is order result data with deals
+        elif "deals" in data and isinstance(data["deals"], list):
+            for deal in data["deals"]:
+                if isinstance(deal, dict) and "id" in deal:
+                    order_id = str(deal["id"])
+                    
+                    if order_id in self._active_orders:
+                        active_order = self._active_orders[order_id]
+                        profit = float(deal.get('profit', 0))
+                        
+                        # Determine status
+                        if profit > 0:
+                            status = OrderStatus.WIN
+                        elif profit < 0:
+                            status = OrderStatus.LOSE
+                        else:
+                            status = OrderStatus.LOSE  # Default for zero profit
+                        
+                        result = OrderResult(
+                            order_id=active_order.order_id,
+                            asset=active_order.asset,
+                            amount=active_order.amount,
+                            direction=active_order.direction,
+                            duration=active_order.duration,
+                            status=status,
+                            placed_at=active_order.placed_at,
+                            expires_at=active_order.expires_at,
+                            profit=profit,
+                            payout=deal.get('payout')
+                        )
+                        
+                        # Move from active to completed
+                        self._order_results[order_id] = result
+                        del self._active_orders[order_id]
+                        
+                        if self.enable_logging:
+                            logger.success(f"✅ Order {order_id} completed via JSON data: {status.value} - Profit: ${profit:.2f}")
+                        await self._emit_event('order_closed', result)
