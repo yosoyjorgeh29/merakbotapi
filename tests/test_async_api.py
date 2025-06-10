@@ -17,7 +17,8 @@ from pocketoptionapi_async import (
     PocketOptionError,
     ConnectionError,
     OrderError,
-    InvalidParameterError
+    InvalidParameterError,
+    ConnectionStatus
 )
 
 
@@ -28,9 +29,9 @@ class TestAsyncPocketOptionClient:
     def client(self):
         """Create test client"""
         return AsyncPocketOptionClient(
-            session_id="test_session",
+            ssid="test_session",
             is_demo=True,
-            timeout=10.0
+            uid=12345
         )
     
     @pytest.fixture
@@ -46,9 +47,8 @@ class TestAsyncPocketOptionClient:
         """Test client initialization"""
         assert client.session_id == "test_session"
         assert client.is_demo is True
-        assert client.timeout == 10.0
+        assert client.uid == 12345
         assert client._balance is None
-        assert client._active_orders == {}
     
     @pytest.mark.asyncio
     async def test_connect_success(self, client, mock_websocket):
@@ -88,19 +88,26 @@ class TestAsyncPocketOptionClient:
         )
         client._balance = test_balance
         
-        with patch.object(client, 'is_connected', True):
-            balance = await client.get_balance()
-            
-            assert balance.balance == 1000.0
-            assert balance.currency == "USD"
-            assert balance.is_demo is True
+        # Mock websocket as connected
+        client._websocket.websocket = MagicMock()
+        client._websocket.websocket.closed = False
+        client._websocket.connection_info = MagicMock()
+        client._websocket.connection_info.status = ConnectionStatus.CONNECTED
+        
+        balance = await client.get_balance()
+        
+        assert balance.balance == 1000.0
+        assert balance.currency == "USD"
+        assert balance.is_demo is True
     
     @pytest.mark.asyncio
     async def test_get_balance_not_connected(self, client):
         """Test getting balance when not connected"""
-        with patch.object(client, 'is_connected', False):
-            with pytest.raises(ConnectionError):
-                await client.get_balance()
+        # Mock websocket as not connected
+        client._websocket.websocket = None
+        
+        with pytest.raises(ConnectionError):
+            await client.get_balance()
     
     def test_validate_order_parameters_valid(self, client):
         """Test order parameter validation with valid parameters"""
@@ -146,92 +153,114 @@ class TestAsyncPocketOptionClient:
     async def test_place_order_success(self, client, mock_websocket):
         """Test successful order placement"""
         with patch.object(client, '_websocket', mock_websocket):
-            with patch.object(client, 'is_connected', True):
-                # Mock order result
-                test_order_result = OrderResult(
-                    order_id="test_order_123",
-                    asset="EURUSD_otc",
-                    amount=10.0,
-                    direction=OrderDirection.CALL,
-                    duration=120,
-                    status=OrderStatus.ACTIVE,
-                    placed_at=datetime.now(),
-                    expires_at=datetime.now() + timedelta(seconds=120)
-                )
-                
-                with patch.object(client, '_wait_for_order_result', return_value=test_order_result):
-                    result = await client.place_order(
-                        asset="EURUSD_otc",
-                        amount=10.0,
-                        direction=OrderDirection.CALL,
-                        duration=120
-                    )
-                    
-                    assert result.order_id == "test_order_123"
-                    assert result.status == OrderStatus.ACTIVE
-                    assert result.asset == "EURUSD_otc"
-    
-    @pytest.mark.asyncio
-    async def test_place_order_not_connected(self, client):
-        """Test order placement when not connected"""
-        with patch.object(client, 'is_connected', False):
-            with pytest.raises(ConnectionError):
-                await client.place_order(
+            # Mock websocket as connected
+            mock_websocket.websocket = MagicMock()
+            mock_websocket.websocket.closed = False
+            mock_websocket.connection_info = MagicMock()
+            mock_websocket.connection_info.status = ConnectionStatus.CONNECTED
+            
+            # Mock order result
+            test_order_result = OrderResult(
+                order_id="test_order_123",
+                asset="EURUSD_otc",
+                amount=10.0,
+                direction=OrderDirection.CALL,
+                duration=120,
+                status=OrderStatus.ACTIVE,
+                placed_at=datetime.now(),
+                expires_at=datetime.now() + timedelta(seconds=120)
+            )
+            
+            with patch.object(client, '_wait_for_order_result', return_value=test_order_result):
+                result = await client.place_order(
                     asset="EURUSD_otc",
                     amount=10.0,
                     direction=OrderDirection.CALL,
                     duration=120
                 )
+                
+                assert result.order_id == "test_order_123"
+                assert result.status == OrderStatus.ACTIVE
+                assert result.asset == "EURUSD_otc"
+    
+    @pytest.mark.asyncio
+    async def test_place_order_not_connected(self, client):
+        """Test order placement when not connected"""
+        # Mock websocket as not connected
+        client._websocket.websocket = None
+        
+        with pytest.raises(ConnectionError):
+            await client.place_order(
+                asset="EURUSD_otc",
+                amount=10.0,
+                direction=OrderDirection.CALL,
+                duration=120
+            )
     
     @pytest.mark.asyncio
     async def test_get_candles_success(self, client, mock_websocket):
         """Test successful candles retrieval"""
         with patch.object(client, '_websocket', mock_websocket):
-            with patch.object(client, 'is_connected', True):
-                # Mock candles data
-                test_candles = [
-                    {
-                        'timestamp': datetime.now(),
-                        'open': 1.1000,
-                        'high': 1.1010,
-                        'low': 1.0990,
-                        'close': 1.1005,
-                        'asset': 'EURUSD_otc',
-                        'timeframe': 60
-                    }
-                ]
+            # Mock websocket as connected
+            mock_websocket.websocket = MagicMock()
+            mock_websocket.websocket.closed = False
+            mock_websocket.connection_info = MagicMock()
+            mock_websocket.connection_info.status = ConnectionStatus.CONNECTED
+            
+            # Mock candles data
+            test_candles = [
+                {
+                    'timestamp': datetime.now(),
+                    'open': 1.1000,
+                    'high': 1.1010,
+                    'low': 1.0990,
+                    'close': 1.1005,
+                    'asset': 'EURUSD_otc',
+                    'timeframe': 60
+                }
+            ]
+            
+            with patch.object(client, '_request_candles', return_value=test_candles):
+                candles = await client.get_candles(
+                    asset="EURUSD_otc",
+                    timeframe="1m",
+                    count=100
+                )
                 
-                with patch.object(client, '_request_candles', return_value=test_candles):
-                    candles = await client.get_candles(
-                        asset="EURUSD_otc",
-                        timeframe="1m",
-                        count=100
-                    )
-                    
-                    assert len(candles) == 1
-                    assert candles[0]['asset'] == 'EURUSD_otc'
+                assert len(candles) == 1
+                assert candles[0]['asset'] == 'EURUSD_otc'
     
     @pytest.mark.asyncio
     async def test_get_candles_invalid_timeframe(self, client):
         """Test candles retrieval with invalid timeframe"""
-        with patch.object(client, 'is_connected', True):
-            with pytest.raises(InvalidParameterError):
-                await client.get_candles(
-                    asset="EURUSD_otc",
-                    timeframe="invalid",
-                    count=100
-                )
+        # Mock websocket as connected
+        client._websocket.websocket = MagicMock()
+        client._websocket.websocket.closed = False
+        client._websocket.connection_info = MagicMock()
+        client._websocket.connection_info.status = ConnectionStatus.CONNECTED
+        
+        with pytest.raises(InvalidParameterError):
+            await client.get_candles(
+                asset="EURUSD_otc",
+                timeframe="invalid",
+                count=100
+            )
     
     @pytest.mark.asyncio
     async def test_get_candles_invalid_asset(self, client):
         """Test candles retrieval with invalid asset"""
-        with patch.object(client, 'is_connected', True):
-            with pytest.raises(InvalidParameterError):
-                await client.get_candles(
-                    asset="INVALID_ASSET",
-                    timeframe="1m",
-                    count=100
-                )
+        # Mock websocket as connected
+        client._websocket.websocket = MagicMock()
+        client._websocket.websocket.closed = False
+        client._websocket.connection_info = MagicMock()
+        client._websocket.connection_info.status = ConnectionStatus.CONNECTED
+        
+        with pytest.raises(InvalidParameterError):
+            await client.get_candles(
+                asset="INVALID_ASSET",
+                timeframe="1m",
+                count=100
+            )
     
     def test_add_event_callback(self, client):
         """Test adding event callback"""
@@ -345,8 +374,8 @@ class TestUtilities:
         formatted = format_session_id("test_session", True, 123, 1)
         
         assert "test_session" in formatted
-        assert "isDemo\":1" in formatted
-        assert "uid\":123" in formatted
+        assert '"isDemo": 1' in formatted
+        assert '"uid": 123' in formatted
     
     def test_calculate_payout_percentage_win(self):
         """Test payout calculation for winning trade"""

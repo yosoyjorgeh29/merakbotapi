@@ -9,7 +9,9 @@ from .exceptions import (
     ConnectionError,
     AuthenticationError,
     OrderError,
-    TimeoutError
+    TimeoutError,
+    InvalidParameterError,
+    WebSocketError
 )
 from .models import (
     Balance,
@@ -22,6 +24,11 @@ from .models import (
     ConnectionStatus
 )
 from .constants import ASSETS, Regions
+# Import monitoring components
+from .monitoring import (
+    ErrorMonitor, HealthChecker, ErrorSeverity, ErrorCategory,
+    CircuitBreaker, RetryPolicy, error_monitor, health_checker
+)
 
 # Create REGIONS instance
 REGIONS = Regions()
@@ -36,6 +43,8 @@ __all__ = [
     "AuthenticationError",
     "OrderError",
     "TimeoutError",
+    "InvalidParameterError",
+    "WebSocketError",
     "Balance",
     "Candle",
     "Order",
@@ -45,5 +54,8 @@ __all__ = [
     "Asset",
     "ConnectionStatus",
     "ASSETS",
-    "REGIONS"
+    "REGIONS",
+    # Monitoring and error handling
+    'ErrorMonitor', 'HealthChecker', 'ErrorSeverity', 'ErrorCategory',
+    'CircuitBreaker', 'RetryPolicy', 'error_monitor', 'health_checker',
 ]

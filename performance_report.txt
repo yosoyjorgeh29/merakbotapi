@@ -1,0 +1,19 @@
+============================================================
+POCKETOPTION ASYNC API PERFORMANCE REPORT
+============================================================
+
+📡 CONNECTION PERFORMANCE
+------------------------------
+❌ Connection tests failed
+
+📊 DATA RETRIEVAL PERFORMANCE
+-----------------------------------
+❌ Data retrieval test error: Failed to connect: WebSocket is not connected
+
+⚡ CONCURRENT OPERATIONS
+-------------------------
+❌ Concurrent operations failed
+
+============================================================
+Report generated at: 2025-06-10 11:51:18
+============================================================

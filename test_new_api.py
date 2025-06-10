@@ -22,19 +22,20 @@ async def test_basic_functionality():
     print("🧪 Testing Professional Async PocketOption API")
     print("=" * 50)
     
-    # Mock session ID for testing (replace with real one for live testing)
-    session_id = os.getenv("POCKET_OPTION_SSID", "test_session_id")
+    # Complete SSID format for testing (replace with real one for live testing)
+    complete_ssid = os.getenv("POCKET_OPTION_SSID", 
+                             r'42["auth",{"session":"n1p5ah5u8t9438rbunpgrq0hlq","isDemo":1,"uid":0,"platform":1}]')
     
-    if session_id == "test_session_id":
-        print("⚠️  Using mock session ID. Set POCKET_OPTION_SSID environment variable for live testing.")
+    if "n1p5ah5u8t9438rbunpgrq0hlq" in complete_ssid:
+        print("⚠️  Using mock SSID. Set POCKET_OPTION_SSID environment variable for live testing.")
+        print("   Format: export POCKET_OPTION_SSID='42[\"auth\",{\"session\":\"your_session\",\"isDemo\":1,\"uid\":your_uid,\"platform\":1}]'")
     
     try:
         # Test 1: Client initialization
         print("\n1️⃣ Testing client initialization...")
         client = AsyncPocketOptionClient(
-            session_id=session_id,
-            is_demo=True,
-            timeout=10.0
+            ssid=complete_ssid,
+            is_demo=True
         )
         print("✅ Client initialized successfully")
         
@@ -165,7 +166,7 @@ async def test_context_manager():
     
     print("\n🔧 Testing context manager...")
     
-    session_id = "test_session_id"
+    session_id = "n1p5ah5u8t9438rbunpgrq0hlq"
     
     try:
         async with AsyncPocketOptionClient(session_id, is_demo=True) as client:
@@ -181,7 +182,7 @@ async def test_event_callbacks():
     
     print("\n📡 Testing event callbacks...")
     
-    session_id = "test_session_id"
+    session_id = "n1p5ah5u8t9438rbunpgrq0hlq"
     client = AsyncPocketOptionClient(session_id, is_demo=True)
     
     # Test callback registration

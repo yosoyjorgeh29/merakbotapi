@@ -1,0 +1,26 @@
+================================================================================
+ENHANCED POCKETOPTION API PERFORMANCE REPORT
+================================================================================
+Generated: 2025-06-10 11:47:44
+
+🔍 ERROR MONITORING
+----------------------------------------
+Total Errors: 20
+Error Rate: 0.83/hour
+
+Top Error Types:
+  • test_spam: 15
+  • connection_test_error: 1
+  • connection_timeout: 1
+  • invalid_session: 1
+  • order_rejected: 1
+
+🏥 HEALTH MONITORING
+----------------------------------------
+Overall Status: healthy
+
+💡 RECOMMENDATIONS
+----------------------------------------
+• High error count detected - investigate error patterns
+
+================================================================================

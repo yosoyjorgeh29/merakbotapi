@@ -6,8 +6,9 @@ import asyncio
 import json
 import ssl
 import time
-from typing import Optional, Callable, Dict, Any, List
+from typing import Optional, Callable, Dict, Any, List, Deque
 from datetime import datetime, timedelta
+from collections import deque
 import websockets
 from websockets.exceptions import ConnectionClosed, WebSocketException
 from loguru import logger
@@ -15,6 +16,98 @@ from loguru import logger
 from .models import ConnectionInfo, ConnectionStatus, ServerTime
 from .constants import CONNECTION_SETTINGS, DEFAULT_HEADERS
 from .exceptions import WebSocketError, ConnectionError
+
+
+class MessageBatcher:
+    """Batch messages to improve performance"""
+    
+    def __init__(self, batch_size: int = 10, batch_timeout: float = 0.1):
+        self.batch_size = batch_size
+        self.batch_timeout = batch_timeout
+        self.pending_messages: Deque[str] = deque()
+        self._last_batch_time = time.time()
+        self._batch_lock = asyncio.Lock()
+    
+    async def add_message(self, message: str) -> List[str]:
+        """Add message to batch and return batch if ready"""
+        async with self._batch_lock:
+            self.pending_messages.append(message)
+            current_time = time.time()
+            
+            # Check if batch is ready
+            if (len(self.pending_messages) >= self.batch_size or 
+                current_time - self._last_batch_time >= self.batch_timeout):
+                
+                batch = list(self.pending_messages)
+                self.pending_messages.clear()
+                self._last_batch_time = current_time
+                return batch
+            
+            return []
+    
+    async def flush_batch(self) -> List[str]:
+        """Force flush current batch"""
+        async with self._batch_lock:
+            if self.pending_messages:
+                batch = list(self.pending_messages)
+                self.pending_messages.clear()
+                self._last_batch_time = time.time()
+                return batch
+            return []
+
+
+class ConnectionPool:
+    """Connection pool for better resource management"""
+    
+    def __init__(self, max_connections: int = 3):
+        self.max_connections = max_connections
+        self.active_connections: Dict[str, websockets.WebSocketServerProtocol] = {}
+        self.connection_stats: Dict[str, Dict[str, Any]] = {}
+        self._pool_lock = asyncio.Lock()
+    
+    async def get_best_connection(self) -> Optional[str]:
+        """Get the best performing connection URL"""
+        async with self._pool_lock:
+            if not self.connection_stats:
+                return None
+            
+            # Sort by response time and success rate
+            best_url = min(
+                self.connection_stats.keys(),
+                key=lambda url: (
+                    self.connection_stats[url].get('avg_response_time', float('inf')),
+                    -self.connection_stats[url].get('success_rate', 0)
+                )
+            )
+            return best_url
+    
+    async def update_stats(self, url: str, response_time: float, success: bool):
+        """Update connection statistics"""
+        async with self._pool_lock:
+            if url not in self.connection_stats:
+                self.connection_stats[url] = {
+                    'response_times': deque(maxlen=100),
+                    'successes': 0,
+                    'failures': 0,
+                    'avg_response_time': 0,
+                    'success_rate': 0
+                }
+            
+            stats = self.connection_stats[url]
+            stats['response_times'].append(response_time)
+            
+            if success:
+                stats['successes'] += 1
+            else:
+                stats['failures'] += 1
+            
+            # Update averages
+            if stats['response_times']:
+                stats['avg_response_time'] = sum(stats['response_times']) / len(stats['response_times'])
+            
+            total_attempts = stats['successes'] + stats['failures']
+            if total_attempts > 0:
+                stats['success_rate'] = stats['successes'] / total_attempts
 
 
 class AsyncWebSocketClient:
@@ -33,6 +126,22 @@ class AsyncWebSocketClient:
         self._reconnect_attempts = 0
         self._max_reconnect_attempts = CONNECTION_SETTINGS['max_reconnect_attempts']
         
+        # Performance improvements
+        self._message_batcher = MessageBatcher()
+        self._connection_pool = ConnectionPool()
+        self._rate_limiter = asyncio.Semaphore(10)  # Max 10 concurrent operations
+        self._message_cache: Dict[str, Any] = {}
+        self._cache_ttl = 5.0  # Cache TTL in seconds
+        
+        # Message processing optimization
+        self._message_handlers = {
+            '0': self._handle_initial_message,
+            '2': self._handle_ping_message,
+            '40': self._handle_connection_message,
+            '451-[': self._handle_json_message_wrapper,
+            '42': self._handle_auth_message
+        }
+    
     async def connect(self, urls: List[str], ssid: str) -> bool:
         """
         Connect to PocketOption WebSocket with fallback URLs
@@ -145,6 +254,48 @@ class AsyncWebSocketClient:
             logger.error(f"Failed to send message: {e}")
             raise WebSocketError(f"Failed to send message: {e}")
     
+    async def send_message_optimized(self, message: str) -> None:
+        """
+        Send message with batching optimization
+        
+        Args:
+            message: Message to send
+        """
+        async with self._rate_limiter:
+            if not self.websocket or self.websocket.closed:
+                raise WebSocketError("WebSocket is not connected")
+            
+            try:
+                start_time = time.time()
+                
+                # Add to batch
+                batch = await self._message_batcher.add_message(message)
+                
+                # Send batch if ready
+                if batch:
+                    for msg in batch:
+                        await self.websocket.send(msg)
+                        logger.debug(f"Sent batched message: {msg}")
+                
+                # Update connection stats
+                response_time = time.time() - start_time
+                if self.connection_info:
+                    await self._connection_pool.update_stats(
+                        self.connection_info.url, 
+                        response_time, 
+                        True
+                    )
+                    
+            except Exception as e:
+                logger.error(f"Failed to send message: {e}")
+                if self.connection_info:
+                    await self._connection_pool.update_stats(
+                        self.connection_info.url, 
+                        0, 
+                        False
+                    )
+                raise WebSocketError(f"Failed to send message: {e}")
+    
     async def receive_messages(self) -> None:
         """
         Continuously receive and process messages
@@ -240,14 +391,18 @@ class AsyncWebSocketClient:
                 logger.error(f"Ping failed: {e}")
                 break
     
-    async def _process_message(self, message: str) -> None:
+    async def _process_message(self, message) -> None:
         """
         Process incoming WebSocket message
         
         Args:
-            message: Raw message from WebSocket
+            message: Raw message from WebSocket (bytes or str)
         """
         try:
+            # Convert bytes to string if needed
+            if isinstance(message, bytes):
+                message = message.decode('utf-8')
+            
             logger.debug(f"Received message: {message}")
             
             # Handle different message types
@@ -271,6 +426,73 @@ class AsyncWebSocketClient:
                 logger.error("Authentication failed: Invalid SSID")
                 await self._emit_event('auth_error', {'message': 'Invalid SSID'})
                 
+        except Exception as e:
+            logger.error(f"Error processing message: {e}")
+    
+    async def _handle_initial_message(self, message: str) -> None:
+        """Handle initial connection message"""
+        if 'sid' in message:
+            await self.send_message("40")
+    
+    async def _handle_ping_message(self, message: str) -> None:
+        """Handle ping message"""
+        await self.send_message("3")
+    
+    async def _handle_connection_message(self, message: str) -> None:
+        """Handle connection establishment message"""
+        if 'sid' in message:
+            await self._emit_event('connected', {})
+    
+    async def _handle_json_message_wrapper(self, message: str) -> None:
+        """Handle JSON message wrapper"""
+        json_part = message.split("-", 1)[1]
+        data = json.loads(json_part)
+        await self._handle_json_message(data)
+    
+    async def _handle_auth_message(self, message: str) -> None:
+        """Handle authentication message"""
+        if 'NotAuthorized' in message:
+            logger.error("Authentication failed: Invalid SSID")
+            await self._emit_event('auth_error', {'message': 'Invalid SSID'})
+    
+    async def _process_message_optimized(self, message) -> None:
+        """
+        Process incoming WebSocket message with optimization
+        
+        Args:
+            message: Raw message from WebSocket (bytes or str)
+        """
+        try:
+            # Convert bytes to string if needed
+            if isinstance(message, bytes):
+                message = message.decode('utf-8')
+                
+            logger.debug(f"Received message: {message}")
+            
+            # Check cache first
+            message_hash = hash(message)
+            cached_time = self._message_cache.get(f"{message_hash}_time")
+            
+            if cached_time and time.time() - cached_time < self._cache_ttl:
+                # Use cached processing result
+                cached_result = self._message_cache.get(message_hash)
+                if cached_result:
+                    await self._emit_event('cached_message', cached_result)
+                    return
+            
+            # Fast message routing
+            for prefix, handler in self._message_handlers.items():
+                if message.startswith(prefix):
+                    await handler(message)
+                    break
+            else:
+                # Unknown message type
+                logger.warning(f"Unknown message type: {message[:20]}...")
+            
+            # Cache processing result
+            self._message_cache[message_hash] = {'processed': True, 'type': 'unknown'}
+            self._message_cache[f"{message_hash}_time"] = time.time()
+            
         except Exception as e:
             logger.error(f"Error processing message: {e}")
     
