@@ -8,7 +8,7 @@ import time
 
 dotenv.load_dotenv()
 
-ssid = (r'42["auth",{"session":"n1p5ah5u8t9438rbunpgrq0hlq","isDemo":1,"uid":72645361,"platform":1,"isFastHistory":true}]') #os.getenv("SSID")
+ssid = (r'42["auth",{"session":"t04ppgptp3404h0lajp4bo7smh","isDemo":1,"uid":101884312,"platform":2,"isFastHistory":true}]') #os.getenv("SSID")
 print(ssid)
 api = AsyncPocketOptionClient(ssid=ssid, is_demo=True)
 async def main():
@@ -26,6 +26,8 @@ async def main():
         duration=5
     )
     print(f"OrderData: {order_Data}")
+    order_info = await api.check_order_result(order_Data.order_id)
+    print(f"OrderInfo: {order_info}")
 
 if __name__ == "__main__":
     import asyncio

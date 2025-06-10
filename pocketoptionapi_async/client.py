@@ -337,19 +337,18 @@ class AsyncPocketOptionClient:
         """
         if not self.is_connected:
             raise ConnectionError("Not connected to PocketOption")
-            
-        # Validate parameters
+              # Validate parameters
         self._validate_order_parameters(asset, amount, direction, duration)
         
         try:
             # Create order
             order_id = str(uuid.uuid4())
             order = Order(
-                order_id=order_id,
                 asset=asset,
                 amount=amount,
                 direction=direction,
-                duration=duration
+                duration=duration,
+                request_id=order_id  # Use request_id, not order_id
             )
             
             # Send order
@@ -638,13 +637,17 @@ class AsyncPocketOptionClient:
             )
         
         if duration < API_LIMITS['min_duration'] or duration > API_LIMITS['max_duration']:
-            raise InvalidParameterError(
-                f"Duration must be between {API_LIMITS['min_duration']} and {API_LIMITS['max_duration']} seconds"
+            raise InvalidParameterError(                f"Duration must be between {API_LIMITS['min_duration']} and {API_LIMITS['max_duration']} seconds"
             )
 
     async def _send_order(self, order: Order) -> None:
         """Send order to server"""
-        message = f'42["buy",{{"asset":"{order.asset}","amount":{order.amount},"direction":"{order.direction.value}","duration":{order.duration},"requestId":"{order.order_id}"}}]'
+        # Format asset name with # prefix if not already present
+        asset_name = order.asset
+        
+        # Create the message in the correct PocketOption format
+        message = f'42["openOrder",{{"asset":"{asset_name}","amount":{order.amount},"action":"{order.direction.value}","isDemo":{1 if self.is_demo else 0},"requestId":"{order.request_id}","optionType":100,"time":{order.duration}}}]'
+        
         await self._websocket.send_message(message)
 
     async def _wait_for_order_result(self, request_id: str, timeout: float = 10.0) -> OrderResult:
@@ -708,7 +711,7 @@ class AsyncPocketOptionClient:
 
     async def _on_balance_data(self, data: Dict[str, Any]) -> None:
         """Handle balance data from raw JSON messages (like old API)"""
-        if 'balance' in data:
+        if 'balance' in data:            
             self._balance = Balance(
                 balance=float(data['balance']),
                 currency=data.get('currency', 'USD'),
@@ -720,6 +723,29 @@ class AsyncPocketOptionClient:
     async def _on_order_opened(self, data: Dict[str, Any]) -> None:
         """Handle order opened event"""
         logger.info(f"Order opened: {data}")
+        
+        # Extract order details from server response
+        if isinstance(data, dict):
+            request_id = data.get('requestId') or data.get('id')
+            if request_id:
+                request_id = str(request_id)
+                
+                # Create OrderResult for tracking
+                order_result = OrderResult(
+                    order_id=request_id,
+                    asset=data.get('asset', 'UNKNOWN'),
+                    amount=float(data.get('amount', 0)),
+                    direction=OrderDirection.CALL if data.get('action', '').lower() == 'call' else OrderDirection.PUT,
+                    duration=int(data.get('time', 60)),
+                    status=OrderStatus.ACTIVE,
+                    placed_at=datetime.now(),
+                    expires_at=datetime.now() + timedelta(seconds=int(data.get('time', 60)))
+                )
+                
+                # Add to active orders for tracking
+                self._active_orders[request_id] = order_result
+                logger.success(f"✅ Order {request_id} added to active tracking")
+                
         await self._emit_event('order_opened', data)
 
     async def _on_order_closed(self, data: Dict[str, Any]) -> None:
