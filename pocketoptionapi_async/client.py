@@ -219,9 +219,7 @@ class AsyncPocketOptionClient:
         logger.info("🚀 Starting persistent connection with automatic keep-alive...")
         
         # Import the keep-alive manager
-        import sys
-        sys.path.append('/Users/vigowalker/PocketOptionAPI-3')
-        from connection_keep_alive import ConnectionKeepAlive
+        from .connection_keep_alive import ConnectionKeepAlive
         
         # Create keep-alive manager
         complete_ssid = self.raw_ssid
@@ -231,6 +229,15 @@ class AsyncPocketOptionClient:
         self._keep_alive_manager.add_event_handler('connected', self._on_keep_alive_connected)
         self._keep_alive_manager.add_event_handler('reconnected', self._on_keep_alive_reconnected)
         self._keep_alive_manager.add_event_handler('message_received', self._on_keep_alive_message)
+        
+        # Add handlers for forwarded WebSocket events
+        self._keep_alive_manager.add_event_handler('balance_data', self._on_balance_data)
+        self._keep_alive_manager.add_event_handler('balance_updated', self._on_balance_updated)
+        self._keep_alive_manager.add_event_handler('authenticated', self._on_authenticated)
+        self._keep_alive_manager.add_event_handler('order_opened', self._on_order_opened)
+        self._keep_alive_manager.add_event_handler('order_closed', self._on_order_closed)
+        self._keep_alive_manager.add_event_handler('stream_update', self._on_stream_update)
+        self._keep_alive_manager.add_event_handler('json_data', self._on_json_data)
         
         # Connect with keep-alive
         success = await self._keep_alive_manager.connect_with_keep_alive(regions)
@@ -375,7 +382,7 @@ class AsyncPocketOptionClient:
     async def get_candles(self, asset: str, timeframe: Union[str, int], 
                          count: int = 100, end_time: Optional[datetime] = None) -> List[Candle]:
         """
-        Get historical candle data
+        Get historical candle data with automatic reconnection
         
         Args:
             asset: Asset symbol
@@ -386,8 +393,15 @@ class AsyncPocketOptionClient:
         Returns:
             List[Candle]: Historical candle data
         """
+        # Check connection and attempt reconnection if needed
         if not self.is_connected:
-            raise ConnectionError("Not connected to PocketOption")
+            if self.auto_reconnect:
+                logger.info(f"🔄 Connection lost, attempting reconnection for {asset} candles...")
+                reconnected = await self._attempt_reconnection()
+                if not reconnected:
+                    raise ConnectionError("Not connected to PocketOption and reconnection failed")
+            else:
+                raise ConnectionError("Not connected to PocketOption")
             
         # Convert timeframe to seconds
         if isinstance(timeframe, str):
@@ -403,20 +417,32 @@ class AsyncPocketOptionClient:
         if not end_time:
             end_time = datetime.now()
         
-        try:
-            # Request candle data
-            candles = await self._request_candles(asset, timeframe_seconds, count, end_time)
-            
-            # Cache results
-            cache_key = f"{asset}_{timeframe_seconds}"
-            self._candles_cache[cache_key] = candles
-            
-            logger.info(f"Retrieved {len(candles)} candles for {asset}")
-            return candles
-            
-        except Exception as e:
-            logger.error(f"Failed to get candles: {e}")
-            raise PocketOptionError(f"Failed to get candles: {e}")
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                # Request candle data
+                candles = await self._request_candles(asset, timeframe_seconds, count, end_time)
+                
+                # Cache results
+                cache_key = f"{asset}_{timeframe_seconds}"
+                self._candles_cache[cache_key] = candles
+                
+                logger.info(f"Retrieved {len(candles)} candles for {asset}")
+                return candles
+                
+            except Exception as e:
+                if "WebSocket is not connected" in str(e) and attempt < max_retries - 1:
+                    logger.warning(f"🔄 Connection lost during candle request for {asset}, attempting reconnection...")
+                    if self.auto_reconnect:
+                        reconnected = await self._attempt_reconnection()
+                        if reconnected:
+                            logger.info(f"✅ Reconnected, retrying candle request for {asset}")
+                            continue
+                    
+                logger.error(f"Failed to get candles for {asset}: {e}")
+                raise PocketOptionError(f"Failed to get candles: {e}")
+        
+        raise PocketOptionError(f"Failed to get candles after {max_retries} attempts")
 
     async def get_candles_dataframe(self, asset: str, timeframe: Union[str, int], 
                                    count: int = 100, end_time: Optional[datetime] = None) -> pd.DataFrame:
@@ -625,7 +651,12 @@ class AsyncPocketOptionClient:
     async def _request_balance_update(self) -> None:
         """Request balance update from server"""
         message = '42["getBalance"]'
-        await self._websocket.send_message(message)
+        
+        # Use appropriate connection method
+        if self._is_persistent and self._keep_alive_manager:
+            await self._keep_alive_manager.send_message(message)
+        else:
+            await self._websocket.send_message(message)
 
     async def _setup_time_sync(self) -> None:
         """Setup server time synchronization"""
@@ -660,7 +691,13 @@ class AsyncPocketOptionClient:
         
         # Create the message in the correct PocketOption format
         message = f'42["openOrder",{{"asset":"{asset_name}","amount":{order.amount},"action":"{order.direction.value}","isDemo":{1 if self.is_demo else 0},"requestId":"{order.request_id}","optionType":100,"time":{order.duration}}}]'
-        await self._websocket.send_message(message)
+        
+        # Send using appropriate connection
+        if self._is_persistent and self._keep_alive_manager:
+            await self._keep_alive_manager.send_message(message)
+        else:
+            await self._websocket.send_message(message)
+            
         if self.enable_logging:
             logger.debug(f"Sent order: {message}")
 
@@ -714,8 +751,64 @@ class AsyncPocketOptionClient:
             logger.info(f"📝 Created fallback order result for {request_id}")
         return fallback_result
 
+    async def check_win(self, order_id: str, max_wait_time: float = 300.0) -> Optional[Dict[str, Any]]:
+        """
+        Check win functionality - waits for trade completion message
+        
+        Args:
+            order_id: Order ID to check
+            max_wait_time: Maximum time to wait for result (default 5 minutes)
+            
+        Returns:
+            Dictionary with trade result or None if timeout/error
+        """
+        start_time = time.time()
+        
+        if self.enable_logging:
+            logger.info(f"🔍 Starting check_win for order {order_id}, max wait: {max_wait_time}s")
+        
+        while time.time() - start_time < max_wait_time:
+            # Check if order is in completed results
+            if order_id in self._order_results:
+                result = self._order_results[order_id]
+                if self.enable_logging:
+                    logger.success(f"✅ Order {order_id} completed - Status: {result.status.value}, Profit: ${result.profit:.2f}")
+                
+                return {
+                    'result': 'win' if result.status == OrderStatus.WIN else 'loss' if result.status == OrderStatus.LOSE else 'draw',
+                    'profit': result.profit if result.profit is not None else 0,
+                    'order_id': order_id,
+                    'completed': True,
+                    'status': result.status.value
+                }
+            
+            # Check if order is still active (not expired yet)
+            if order_id in self._active_orders:
+                active_order = self._active_orders[order_id]
+                time_remaining = (active_order.expires_at - datetime.now()).total_seconds()
+                
+                if time_remaining <= 0:
+                    if self.enable_logging:
+                        logger.info(f"⏰ Order {order_id} expired but no result yet, continuing to wait...")
+                else:
+                    if self.enable_logging and int(time.time() - start_time) % 10 == 0:  # Log every 10 seconds
+                        logger.debug(f"⌛ Order {order_id} still active, expires in {time_remaining:.0f}s")
+            
+            await asyncio.sleep(1.0)  # Check every second
+        
+        # Timeout reached
+        if self.enable_logging:
+            logger.warning(f"⏰ check_win timeout for order {order_id} after {max_wait_time}s")
+        
+        return {
+            'result': 'timeout',
+            'order_id': order_id,
+            'completed': False,
+            'timeout': True
+        }
+
     async def _request_candles(self, asset: str, timeframe: int, count: int, 
-                              end_time: datetime) -> List[Candle]:
+                              end_time: datetime):
         """Request candle data from server using the correct changeSymbol format"""
         
         # Create message data in the format expected by PocketOption for real-time candles
@@ -739,8 +832,12 @@ class AsyncPocketOptionClient:
         if not hasattr(self, '_candle_requests'):
             self._candle_requests = {}
         self._candle_requests[request_id] = candle_future
-          # Send the request
-        await self._websocket.send_message(message)
+        
+        # Send the request using appropriate connection
+        if self._is_persistent and self._keep_alive_manager:
+            await self._keep_alive_manager.send_message(message)
+        else:
+            await self._websocket.send_message(message)
         
         try:
             # Wait for the response (with timeout)
@@ -1017,7 +1114,7 @@ class AsyncPocketOptionClient:
             if self.enable_logging:
                 logger.error(f"❌ Error handling candles stream: {e}")
 
-    def _parse_stream_candles(self, stream_data: Dict[str, Any]) -> List[Candle]:
+    def _parse_stream_candles(self, stream_data: Dict[str, Any]):
         """Parse candles from stream update data (changeSymbol response)"""
         candles = []
         
@@ -1058,3 +1155,122 @@ class AsyncPocketOptionClient:
                 logger.error(f"Error parsing stream candles: {e}")
         
         return candles
+
+    async def _on_keep_alive_connected(self):
+        """Handle event when keep-alive connection is established"""
+        logger.info("Keep-alive connection established")
+        
+        # Initialize data after connection
+        await self._initialize_data()
+        
+        # Emit event
+        for callback in self._event_callbacks.get('connected', []):
+            try:
+                if asyncio.iscoroutinefunction(callback):
+                    await callback()
+                else:
+                    callback()
+            except Exception as e:
+                logger.error(f"Error in connected callback: {e}")
+    
+    async def _on_keep_alive_reconnected(self):
+        """Handle event when keep-alive connection is re-established"""
+        logger.info("Keep-alive connection re-established")
+        
+        # Re-initialize data
+        await self._initialize_data()
+        
+        # Emit event
+        for callback in self._event_callbacks.get('reconnected', []):
+            try:
+                if asyncio.iscoroutinefunction(callback):
+                    await callback()
+                else:
+                    callback()
+            except Exception as e:
+                logger.error(f"Error in reconnected callback: {e}")
+    
+    async def _on_keep_alive_message(self, message):
+        """Handle messages received via keep-alive connection"""
+        # Process the message
+        if message.startswith('42'):
+            try:
+                # Parse the message (remove the 42 prefix and parse JSON)
+                data_str = message[2:]
+                data = json.loads(data_str)
+                
+                if isinstance(data, list) and len(data) >= 2:
+                    event_type = data[0]
+                    event_data = data[1]
+                    
+                    # Process different event types
+                    if event_type == "authenticated":
+                        await self._on_authenticated(event_data)
+                    elif event_type == "balance_data":
+                        await self._on_balance_data(event_data)
+                    elif event_type == "balance_updated":
+                        await self._on_balance_updated(event_data)
+                    elif event_type == "order_opened":
+                        await self._on_order_opened(event_data)
+                    elif event_type == "order_closed":
+                        await self._on_order_closed(event_data)
+                    elif event_type == "stream_update":
+                        await self._on_stream_update(event_data)
+            except Exception as e:
+                logger.error(f"Error processing keep-alive message: {e}")
+        
+        # Emit raw message event
+        for callback in self._event_callbacks.get('message', []):
+            try:
+                if asyncio.iscoroutinefunction(callback):
+                    await callback(message)
+                else:
+                    callback(message)
+            except Exception as e:
+                logger.error(f"Error in message callback: {e}")
+
+    async def _attempt_reconnection(self, max_attempts: int = 3) -> bool:
+        """
+        Attempt to reconnect to PocketOption
+        
+        Args:
+            max_attempts: Maximum number of reconnection attempts
+            
+        Returns:
+            bool: True if reconnection was successful
+        """
+        logger.info(f"🔄 Attempting reconnection (max {max_attempts} attempts)...")
+        
+        for attempt in range(max_attempts):
+            try:
+                logger.info(f"🔄 Reconnection attempt {attempt + 1}/{max_attempts}")
+                
+                # Disconnect first to clean up
+                if self._is_persistent and self._keep_alive_manager:
+                    await self._keep_alive_manager.disconnect()
+                else:
+                    await self._websocket.disconnect()
+                
+                # Wait a bit before reconnecting
+                await asyncio.sleep(2 + attempt)  # Progressive delay
+                
+                # Attempt to reconnect
+                if self.persistent_connection:
+                    success = await self._start_persistent_connection()
+                else:
+                    success = await self._start_regular_connection()
+                
+                if success:
+                    logger.info(f"✅ Reconnection successful on attempt {attempt + 1}")
+                    
+                    # Trigger reconnected event
+                    await self._emit_event('reconnected', {})
+                    return True
+                else:
+                    logger.warning(f"❌ Reconnection attempt {attempt + 1} failed")
+                    
+            except Exception as e:
+                logger.error(f"❌ Reconnection attempt {attempt + 1} failed with error: {e}")
+        
+        logger.error(f"❌ All {max_attempts} reconnection attempts failed")
+        return False
