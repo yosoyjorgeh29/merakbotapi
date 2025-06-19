@@ -188,7 +188,7 @@ class ConnectionKeepAlive:
                 if self.websocket:
                     try:
                         await self.websocket.close()
-                    except:
+                    except Exception:
                         pass
                     self.websocket = None
 
@@ -360,7 +360,7 @@ class ConnectionKeepAlive:
                         if self.websocket:
                             try:
                                 await self.websocket.close()
-                            except:
+                            except Exception:
                                 pass
                             self.websocket = None
 
@@ -468,7 +468,7 @@ class ConnectionKeepAlive:
                 return "DEMO"
             else:
                 return "UNKNOWN"
-        except:
+        except Exception:
             return "UNKNOWN"
 
     def get_connection_stats(self) -> Dict[str, Any]:

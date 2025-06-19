@@ -16,6 +16,7 @@ from pocketoptionapi_async import (
     ConnectionError,
     OrderError,
 )
+from pocketoptionapi_async.utils import fetch_ssid
 
 
 async def basic_example():
