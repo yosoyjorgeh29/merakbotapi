@@ -8,7 +8,9 @@ with open("README_ASYNC.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 with open("requirements.txt", "r", encoding="utf-8") as fh:
-    requirements = [line.strip() for line in fh if line.strip() and not line.startswith("#")]
+    requirements = [
+        line.strip() for line in fh if line.strip() and not line.startswith("#")
+    ]
 
 setup(
     name="pocketoption-async-api",
@@ -50,7 +52,7 @@ setup(
             "jupyter>=1.0.0",
             "matplotlib>=3.5.0",
             "seaborn>=0.11.0",
-        ]
+        ],
     },
     entry_points={
         "console_scripts": [

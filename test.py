@@ -1,16 +1,13 @@
-import random
-import time
 import dotenv
 from pocketoptionapi_async import AsyncPocketOptionClient
-import logging
-import os
-import time
 
 dotenv.load_dotenv()
 
-ssid = (r'42["auth",{"session":"t04ppgptp3404h0lajp4bo7smh","isDemo":1,"uid":101884312,"platform":2,"isFastHistory":true}]') #os.getenv("SSID")
+ssid = r'42["auth",{"session":"t04ppgptp3404h0lajp4bo7smh","isDemo":1,"uid":101884312,"platform":2,"isFastHistory":true}]'  # os.getenv("SSID")
 print(ssid)
 api = AsyncPocketOptionClient(ssid=ssid, is_demo=True)
+
+
 async def main():
     await api.connect()
 
@@ -29,15 +26,13 @@ async def main():
     # order_info = await api.check_order_result(order_Data.order_id)
     # print(f"OrderInfo: {order_info}")
 
-    candles = await api.get_candles(
-        asset="EURUSD_otc",
-        timeframe=5,
-        count=100
-    )
+    candles = await api.get_candles(asset="EURUSD_otc", timeframe=5, count=100)
     print(candles)
+
 
 if __name__ == "__main__":
     import asyncio
+
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
