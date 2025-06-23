@@ -159,7 +159,7 @@ class AsyncPocketOptionClient:
         Returns:
             bool: True if connected successfully
         """
-        logger.info("🔌 Connecting to PocketOption...")
+        logger.info("Connecting to PocketOption...")
         # Update persistent setting if provided
         if persistent is not None:
             self.persistent_connection = persistent
@@ -223,7 +223,7 @@ class AsyncPocketOptionClient:
                 success = await self._websocket.connect(urls, ssid_message)
 
                 if success:
-                    logger.info(f"✅ Connected to region: {region}")
+                    logger.info(f" Connected to region: {region}")
 
                     # Wait for authentication
                     await self._wait_for_authentication()
@@ -248,7 +248,7 @@ class AsyncPocketOptionClient:
         self, regions: Optional[List[str]] = None
     ) -> bool:
         """Start persistent connection with keep-alive (like old API)"""
-        logger.info("🚀 Starting persistent connection with automatic keep-alive...")
+        logger.info("Starting persistent connection with automatic keep-alive...")
 
         # Import the keep-alive manager
         from .connection_keep_alive import ConnectionKeepAlive
@@ -294,15 +294,15 @@ class AsyncPocketOptionClient:
 
         if success:
             self._is_persistent = True
-            logger.info("✅ Persistent connection established successfully")
+            logger.info(" Persistent connection established successfully")
             return True
         else:
-            logger.error("❌ Failed to establish persistent connection")
+            logger.error("Failed to establish persistent connection")
             return False
 
     async def _start_keep_alive_tasks(self):
         """Start keep-alive tasks for regular connection"""
-        logger.info("🔄 Starting keep-alive tasks for regular connection...")
+        logger.info("Starting keep-alive tasks for regular connection...")
 
         # Start ping task (like old API)
         self._ping_task = asyncio.create_task(self._ping_loop())
@@ -328,15 +328,15 @@ class AsyncPocketOptionClient:
             await asyncio.sleep(30)  # Check every 30 seconds
 
             if not self.is_connected:
-                logger.info("🔄 Connection lost, attempting reconnection...")
+                logger.info("Connection lost, attempting reconnection...")
                 self._connection_stats["total_reconnects"] += 1
 
                 try:
                     success = await self._start_regular_connection()
                     if success:
-                        logger.info("✅ Reconnection successful")
+                        logger.info(" Reconnection successful")
                     else:
-                        logger.error("❌ Reconnection failed")
+                        logger.error("Reconnection failed")
                         await asyncio.sleep(10)  # Wait before next attempt
                 except Exception as e:
                     logger.error(f"Reconnection error: {e}")
@@ -344,7 +344,7 @@ class AsyncPocketOptionClient:
 
     async def disconnect(self) -> None:
         """Disconnect from PocketOption and cleanup all resources"""
-        logger.info("🔌 Disconnecting from PocketOption...")
+        logger.info("Disconnecting from PocketOption...")
 
         # Cancel tasks
         if self._ping_task:
@@ -456,7 +456,7 @@ class AsyncPocketOptionClient:
         if not self.is_connected:
             if self.auto_reconnect:
                 logger.info(
-                    f"🔄 Connection lost, attempting reconnection for {asset} candles..."
+                    f"Connection lost, attempting reconnection for {asset} candles..."
                 )
                 reconnected = await self._attempt_reconnection()
                 if not reconnected:
@@ -498,13 +498,13 @@ class AsyncPocketOptionClient:
             except Exception as e:
                 if "WebSocket is not connected" in str(e) and attempt < max_retries - 1:
                     logger.warning(
-                        f"🔄 Connection lost during candle request for {asset}, attempting reconnection..."
+                        f"Connection lost during candle request for {asset}, attempting reconnection..."
                     )
                     if self.auto_reconnect:
                         reconnected = await self._attempt_reconnection()
                         if reconnected:
                             logger.info(
-                                f"✅ Reconnected, retrying candle request for {asset}"
+                                f" Reconnected, retrying candle request for {asset}"
                             )
                             continue
 
@@ -796,7 +796,7 @@ class AsyncPocketOptionClient:
             # Check if order was added to active orders (by _on_order_opened or _on_json_data)
             if request_id in self._active_orders:
                 if self.enable_logging:
-                    logger.success(f"✅ Order {request_id} found in active tracking")
+                    logger.success(f" Order {request_id} found in active tracking")
                 return self._active_orders[request_id]
 
             # Check if order went directly to results (failed or completed)
@@ -811,7 +811,7 @@ class AsyncPocketOptionClient:
         if request_id in self._active_orders:
             if self.enable_logging:
                 logger.success(
-                    f"✅ Order {request_id} found in active tracking (final check)"
+                    f" Order {request_id} found in active tracking (final check)"
                 )
             return self._active_orders[request_id]
 
@@ -869,7 +869,7 @@ class AsyncPocketOptionClient:
                 result = self._order_results[order_id]
                 if self.enable_logging:
                     logger.success(
-                        f"✅ Order {order_id} completed - Status: {result.status.value}, Profit: ${result.profit:.2f}"
+                        f" Order {order_id} completed - Status: {result.status.value}, Profit: ${result.profit:.2f}"
                     )
 
                 return {
@@ -1025,7 +1025,7 @@ class AsyncPocketOptionClient:
                         self._candle_requests[request_id].set_result(candles)
                         if self.enable_logging:
                             logger.success(
-                                f"✅ Candles data received: {len(candles)} candles for {asset}"
+                                f" Candles data received: {len(candles)} candles for {asset}"
                             )
                         del self._candle_requests[request_id]
                         return
@@ -1060,7 +1060,7 @@ class AsyncPocketOptionClient:
                 self._active_orders[request_id] = order_result
                 if self.enable_logging:
                     logger.success(
-                        f"✅ Order {request_id} added to tracking from JSON data"
+                        f" Order {request_id} added to tracking from JSON data"
                     )
 
                 await self._emit_event("order_opened", data)
@@ -1102,7 +1102,7 @@ class AsyncPocketOptionClient:
 
                         if self.enable_logging:
                             logger.success(
-                                f"✅ Order {order_id} completed via JSON data: {status.value} - Profit: ${profit:.2f}"
+                                f" Order {order_id} completed via JSON data: {status.value} - Profit: ${profit:.2f}"
                             )
                             await self._emit_event("order_closed", result)
 
@@ -1123,7 +1123,7 @@ class AsyncPocketOptionClient:
     async def _on_authenticated(self, data: Dict[str, Any]) -> None:
         """Handle authentication success"""
         if self.enable_logging:
-            logger.success("✅ Successfully authenticated with PocketOption")
+            logger.success(" Successfully authenticated with PocketOption")
         self._connection_stats["successful_connections"] += 1
         await self._emit_event("authenticated", data)
 
@@ -1137,7 +1137,7 @@ class AsyncPocketOptionClient:
             )
             self._balance = balance
             if self.enable_logging:
-                logger.info(f"💰 Balance updated: ${balance.balance:.2f}")
+                logger.info(f"Balance updated: ${balance.balance:.2f}")
             await self._emit_event("balance_updated", balance)
         except Exception as e:
             if self.enable_logging:
@@ -1151,7 +1151,7 @@ class AsyncPocketOptionClient:
     async def _on_order_opened(self, data: Dict[str, Any]) -> None:
         """Handle order opened event"""
         if self.enable_logging:
-            logger.info(f"📈 Order opened: {data}")
+            logger.info(f"Order opened: {data}")
         await self._emit_event("order_opened", data)
 
     async def _on_order_closed(self, data: Dict[str, Any]) -> None:
@@ -1219,7 +1219,7 @@ class AsyncPocketOptionClient:
     async def _on_disconnected(self, data: Dict[str, Any]) -> None:
         """Handle disconnection event"""
         if self.enable_logging:
-            logger.warning("🔌 Disconnected from PocketOption")
+            logger.warning("Disconnected from PocketOption")
         await self._emit_event("disconnected", data)
 
     async def _handle_candles_stream(self, data: Dict[str, Any]) -> None:
@@ -1258,7 +1258,7 @@ class AsyncPocketOptionClient:
 
         except Exception as e:
             if self.enable_logging:
-                logger.error(f"❌ Error handling candles stream: {e}")
+                logger.error(f"Error handling candles stream: {e}")
 
     def _parse_stream_candles(self, stream_data: Dict[str, Any]):
         """Parse candles from stream update data (changeSymbol response)"""
@@ -1385,11 +1385,11 @@ class AsyncPocketOptionClient:
         Returns:
             bool: True if reconnection was successful
         """
-        logger.info(f"🔄 Attempting reconnection (max {max_attempts} attempts)...")
+        logger.info(f"Attempting reconnection (max {max_attempts} attempts)...")
 
         for attempt in range(max_attempts):
             try:
-                logger.info(f"🔄 Reconnection attempt {attempt + 1}/{max_attempts}")
+                logger.info(f"Reconnection attempt {attempt + 1}/{max_attempts}")
 
                 # Disconnect first to clean up
                 if self._is_persistent and self._keep_alive_manager:
@@ -1407,18 +1407,18 @@ class AsyncPocketOptionClient:
                     success = await self._start_regular_connection()
 
                 if success:
-                    logger.info(f"✅ Reconnection successful on attempt {attempt + 1}")
+                    logger.info(f" Reconnection successful on attempt {attempt + 1}")
 
                     # Trigger reconnected event
                     await self._emit_event("reconnected", {})
                     return True
                 else:
-                    logger.warning(f"❌ Reconnection attempt {attempt + 1} failed")
+                    logger.warning(f"Reconnection attempt {attempt + 1} failed")
 
             except Exception as e:
                 logger.error(
-                    f"❌ Reconnection attempt {attempt + 1} failed with error: {e}"
+                    f"Reconnection attempt {attempt + 1} failed with error: {e}"
                 )
 
-        logger.error(f"❌ All {max_attempts} reconnection attempts failed")
+        logger.error(f"All {max_attempts} reconnection attempts failed")
         return False

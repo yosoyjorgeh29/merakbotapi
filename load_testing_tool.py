@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Load Testing and Stress Testing Tool for PocketOption Async API
 """
@@ -69,7 +68,7 @@ class LoadTester:
 
     async def run_load_test(self, config: LoadTestConfig) -> Dict[str, Any]:
         """Run comprehensive load test"""
-        logger.info("🚀 Starting Load Test")
+        logger.info("Starting Load Test")
         logger.info(
             f"Config: {config.concurrent_clients} clients, {config.operations_per_client} ops/client"
         )
@@ -107,7 +106,7 @@ class LoadTester:
         monitor_task = asyncio.create_task(self._monitor_operations())
 
         # Run all client tasks
-        logger.info(f"🔄 Running {len(client_tasks)} concurrent clients...")
+        logger.info(f"Persistent: Running {len(client_tasks)} concurrent clients...")
 
         try:
             await asyncio.gather(*client_tasks, return_exceptions=True)
@@ -122,7 +121,7 @@ class LoadTester:
 
     async def _run_stress_test(self, config: LoadTestConfig) -> Dict[str, Any]:
         """Run stress test with extreme conditions"""
-        logger.info("💥 Running STRESS TEST mode!")
+        logger.info("Error: Running STRESS TEST mode!")
 
         # Stress test phases
         phases = [
@@ -134,7 +133,7 @@ class LoadTester:
 
         for phase_name, clients, delay in phases:
             logger.info(
-                f"🔥 Stress Phase: {phase_name} ({clients} clients, {delay}s delay)"
+                f"Stress: Stress Phase: {phase_name} ({clients} clients, {delay}s delay)"
             )
 
             # Create tasks for this phase
@@ -157,7 +156,7 @@ class LoadTester:
                     timeout=60,  # 1 minute per phase
                 )
             except asyncio.TimeoutError:
-                logger.warning(f"⏰ Stress phase {phase_name} timed out")
+                logger.warning(f"Long-running: Stress phase {phase_name} timed out")
                 # Cancel remaining tasks
                 for task in phase_tasks:
                     if not task.done():
@@ -207,7 +206,7 @@ class LoadTester:
                     )
                 )
 
-                logger.info(f"✅ Client {client_id} connected")
+                logger.info(f"Success: Client {client_id} connected")
             else:
                 self._record_result(
                     LoadTestResult(
@@ -236,7 +235,7 @@ class LoadTester:
 
                 except Exception as e:
                     logger.error(
-                        f"❌ Client {client_id} operation {op_num} failed: {e}"
+                        f"Error: Client {client_id} operation {op_num} failed: {e}"
                     )
                     self._record_result(
                         LoadTestResult(
@@ -250,7 +249,7 @@ class LoadTester:
                     )
 
         except Exception as e:
-            logger.error(f"❌ Client {client_id} failed: {e}")
+            logger.error(f"Error: Client {client_id} failed: {e}")
 
         finally:
             if client:
@@ -316,11 +315,11 @@ class LoadTester:
 
                 except Exception as e:
                     logger.error(
-                        f"❌ Stress client {client_id} operation {op_num} failed: {e}"
+                        f"Error: Stress client {client_id} operation {op_num} failed: {e}"
                     )
 
         except Exception as e:
-            logger.error(f"❌ Stress client {client_id} failed: {e}")
+            logger.error(f"Error: Stress client {client_id} failed: {e}")
 
         finally:
             if keep_alive:
@@ -442,7 +441,7 @@ class LoadTester:
                 if len(self.operations_per_second) % 10 == 0:
                     avg_ops = statistics.mean(list(self.operations_per_second)[-10:])
                     logger.info(
-                        f"📊 Avg ops/sec (last 10s): {avg_ops:.1f}, Peak: {self.peak_operations_per_second}"
+                        f"Statistics: Avg ops/sec (last 10s): {avg_ops:.1f}, Peak: {self.peak_operations_per_second}"
                     )
 
             except Exception as e:
@@ -461,7 +460,7 @@ class LoadTester:
 
     async def _cleanup_clients(self):
         """Clean up all active clients"""
-        logger.info("🧹 Cleaning up clients...")
+        logger.info("Cleaning up clients...")
 
         cleanup_tasks = []
         for client in self.active_clients:
@@ -472,7 +471,7 @@ class LoadTester:
             await asyncio.gather(*cleanup_tasks, return_exceptions=True)
 
         self.active_clients.clear()
-        logger.info("✅ Cleanup completed")
+        logger.info("Success: Cleanup completed")
 
     def _generate_load_test_report(self) -> Dict[str, Any]:
         """Generate comprehensive load test report"""
@@ -603,9 +602,9 @@ async def run_load_test_demo(ssid: str = None):
 
     if not ssid:
         ssid = r'42["auth",{"session":"demo_session_for_load_test","isDemo":1,"uid":0,"platform":1}]'
-        logger.warning("⚠️ Using demo SSID for load testing")
+        logger.warning("Caution: Using demo SSID for load testing")
 
-    logger.info("🚀 Starting Load Testing Demo")
+    logger.info("Starting Load Testing Demo")
 
     # Create load tester
     load_tester = LoadTester(ssid, is_demo=True)
@@ -638,7 +637,7 @@ async def run_load_test_demo(ssid: str = None):
     all_reports = []
 
     for i, config in enumerate(test_configs, 1):
-        logger.info(f"\n🧪 Running Load Test {i}/{len(test_configs)}")
+        logger.info(f"\nTesting: Running Load Test {i}/{len(test_configs)}")
         logger.info(f"Configuration: {config}")
 
         try:
@@ -647,7 +646,7 @@ async def run_load_test_demo(ssid: str = None):
 
             # Print summary
             summary = report["test_summary"]
-            logger.info(f"✅ Test {i} completed:")
+            logger.info(f"Success: Test {i} completed:")
             logger.info(f"  Duration: {summary['total_duration']:.2f}s")
             logger.info(f"  Operations: {summary['total_operations']}")
             logger.info(f"  Success Rate: {summary['success_rate']:.1%}")
@@ -659,7 +658,7 @@ async def run_load_test_demo(ssid: str = None):
             await asyncio.sleep(5)
 
         except Exception as e:
-            logger.error(f"❌ Load test {i} failed: {e}")
+            logger.error(f"Error: Load test {i} failed: {e}")
 
     # Generate comparison report
     if all_reports:
@@ -699,16 +698,16 @@ async def run_load_test_demo(ssid: str = None):
             report_file = f"load_test_{i}_{timestamp}.json"
             with open(report_file, "w") as f:
                 json.dump(report, f, indent=2, default=str)
-            logger.info(f"📄 Test {i} report saved to: {report_file}")
+            logger.info(f"Report: Test {i} report saved to: {report_file}")
 
         comparison_file = f"load_test_comparison_{timestamp}.json"
         with open(comparison_file, "w") as f:
             json.dump(comparison_report, f, indent=2, default=str)
 
-        logger.info(f"📊 Comparison report saved to: {comparison_file}")
+        logger.info(f"Statistics: Comparison report saved to: {comparison_file}")
 
         # Final summary
-        logger.info("\n🏁 LOAD TESTING SUMMARY")
+        logger.info("\nCompleted: LOAD TESTING SUMMARY")
         logger.info("=" * 50)
         logger.info(
             f"Best Throughput: {comparison_report['best_performance'].get('throughput', 'N/A')}"

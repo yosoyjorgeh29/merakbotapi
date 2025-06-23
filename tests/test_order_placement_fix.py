@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Test script to verify order placement fix
 """
@@ -25,10 +24,10 @@ async def test_order_placement_fix():
     ssid = os.getenv("POCKET_OPTION_SSID", "placeholder_session_id")
 
     if ssid == "placeholder_session_id":
-        logger.warning("⚠️ No SSID provided - using placeholder (will fail connection)")
+        logger.warning("No SSID provided - using placeholder (will fail connection)")
         logger.info("Set POCKET_OPTION_SSID environment variable for real testing")
 
-    logger.info("🧪 Testing order placement fix...")
+    logger.info("Testing order placement fix...")
 
     # Create client
     client = AsyncPocketOptionClient(ssid, is_demo=True)
@@ -45,7 +44,7 @@ async def test_order_placement_fix():
         )
 
         logger.success(
-            f"✅ Order created successfully with request_id: {test_order.request_id}"
+            f" Order created successfully with request_id: {test_order.request_id}"
         )
         logger.info(f"   Asset: {test_order.asset}")
         logger.info(f"   Amount: {test_order.amount}")
@@ -54,20 +53,18 @@ async def test_order_placement_fix():
 
         # Test that the order doesn't have order_id attribute
         if not hasattr(test_order, "order_id"):
-            logger.success("✅ Order correctly uses request_id instead of order_id")
+            logger.success(" Order correctly uses request_id instead of order_id")
         else:
-            logger.error(
-                "❌ Order still has order_id attribute - this should not exist"
-            )
+            logger.error("Order still has order_id attribute - this should not exist")
 
         # If we have a real SSID, try connecting and placing an order
         if ssid != "placeholder_session_id":
-            logger.info("🔌 Attempting to connect and place order...")
+            logger.info("Attempting to connect and place order...")
 
             await client.connect()
 
             if client.is_connected:
-                logger.success("✅ Connected successfully")
+                logger.success(" Connected successfully")
 
                 # Try to place an order (this should not fail with attribute error)
                 try:
@@ -79,28 +76,26 @@ async def test_order_placement_fix():
                     )
 
                     logger.success(
-                        f"✅ Order placement succeeded: {order_result.order_id}"
+                        f" Order placement succeeded: {order_result.order_id}"
                     )
                     logger.info(f"   Status: {order_result.status}")
 
                 except Exception as e:
                     if "'Order' object has no attribute 'order_id'" in str(e):
-                        logger.error("❌ The attribute error still exists!")
+                        logger.error("The attribute error still exists!")
                     else:
-                        logger.warning(
-                            f"⚠️ Order placement failed for other reason: {e}"
-                        )
+                        logger.warning(f"Order placement failed for other reason: {e}")
                         logger.info(
                             "This is likely due to connection/authentication issues, not the attribute fix"
                         )
 
             else:
-                logger.warning("⚠️ Could not connect (expected with placeholder SSID)")
+                logger.warning("Could not connect (expected with placeholder SSID)")
 
         logger.success("🎉 Order placement fix test completed!")
 
     except Exception as e:
-        logger.error(f"❌ Test failed: {e}")
+        logger.error(f"Test failed: {e}")
         import traceback
 
         traceback.print_exc()

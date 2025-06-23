@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Enhanced PocketOption API Testing with Monitoring and Performance Analysis
 """
@@ -38,7 +37,7 @@ class EnhancedAPITester:
 
     async def test_enhanced_connection(self):
         """Test connection with enhanced monitoring"""
-        logger.info("🔗 Testing Enhanced Connection with Monitoring")
+        logger.info("Testing Enhanced Connection with Monitoring")
         print("=" * 60)
 
         client = AsyncPocketOptionClient(
@@ -52,7 +51,7 @@ class EnhancedAPITester:
             )
 
             if success:
-                logger.success("✅ Connection successful with monitoring")
+                logger.success(" Connection successful with monitoring")
 
                 # Get health status
                 health = await client.get_health_status()
@@ -68,16 +67,16 @@ class EnhancedAPITester:
                 await self.test_monitored_operations(client)
 
             else:
-                logger.error("❌ Connection failed")
+                logger.error("Connection failed")
 
         except Exception as e:
-            logger.error(f"❌ Connection test failed: {e}")
+            logger.error(f"Connection test failed: {e}")
         finally:
             await client.disconnect()
 
     async def test_monitored_operations(self, client):
         """Test various operations with monitoring"""
-        logger.info("🧪 Testing Monitored Operations")
+        logger.info("Testing Monitored Operations")
 
         operations = [
             ("balance_check", lambda: client.get_balance()),
@@ -94,10 +93,10 @@ class EnhancedAPITester:
                 )
 
                 duration = time.time() - start_time
-                logger.success(f"✅ {op_name}: {duration:.3f}s")
+                logger.success(f" {op_name}: {duration:.3f}s")
 
             except Exception as e:
-                logger.error(f"❌ {op_name} failed: {e}")
+                logger.error(f"{op_name} failed: {e}")
 
                 # Record error in monitoring system
                 await error_monitor.record_error(
@@ -144,13 +143,13 @@ class EnhancedAPITester:
         # Test with working operation
         try:
             result = await breaker.call(working_operation)
-            logger.success(f"✅ Circuit breaker recovered: {result}")
+            logger.success(f" Circuit breaker recovered: {result}")
         except Exception as e:
-            logger.error(f"❌ Recovery failed: {e}")
+            logger.error(f"Recovery failed: {e}")
 
     async def test_concurrent_performance(self):
         """Test concurrent operations performance"""
-        logger.info("🚀 Testing Concurrent Performance")
+        logger.info("Testing Concurrent Performance")
         print("=" * 60)
 
         async def create_and_test_client(client_id: int):
@@ -202,13 +201,13 @@ class EnhancedAPITester:
         failed = [r for r in results if not (isinstance(r, dict) and r.get("success"))]
 
         logger.info("📊 Concurrent Test Results:")
-        logger.info(f"   ✅ Successful: {len(successful)}/{concurrent_level}")
-        logger.info(f"   ❌ Failed: {len(failed)}")
+        logger.info(f"    Successful: {len(successful)}/{concurrent_level}")
+        logger.info(f"   Failed: {len(failed)}")
         logger.info(f"   ⏱️  Total Time: {total_time:.3f}s")
 
         if successful:
             avg_time = sum(r["duration"] for r in successful) / len(successful)
-            logger.info(f"   📈 Avg Client Time: {avg_time:.3f}s")
+            logger.info(f"   Avg Client Time: {avg_time:.3f}s")
 
     async def test_error_monitoring(self):
         """Test error monitoring capabilities"""
@@ -235,7 +234,7 @@ class EnhancedAPITester:
         # Get error summary
         summary = error_monitor.get_error_summary(hours=1)
 
-        logger.info("📈 Error Summary:")
+        logger.info("Error Summary:")
         logger.info(f"   Total Errors: {summary['total_errors']}")
         logger.info(f"   Error Rate: {summary['error_rate']:.2f}/hour")
         logger.info(f"   Top Errors: {summary['top_errors'][:3]}")
@@ -309,7 +308,7 @@ class EnhancedAPITester:
             report.append("• System health issues detected - check service status")
 
         if not error_summary["top_errors"]:
-            report.append("• ✅ No significant errors detected")
+            report.append("•  No significant errors detected")
 
         report.append("")
         report.append("=" * 80)
@@ -325,7 +324,7 @@ class EnhancedAPITester:
 
     async def run_all_tests(self):
         """Run all enhanced tests"""
-        logger.info("🚀 Starting Enhanced API Tests")
+        logger.info("Starting Enhanced API Tests")
         print("=" * 80)
 
         tests = [
@@ -337,12 +336,12 @@ class EnhancedAPITester:
 
         for test_name, test_func in tests:
             try:
-                logger.info(f"🧪 Running {test_name}...")
+                logger.info(f"Running {test_name}...")
                 await test_func()
-                logger.success(f"✅ {test_name} completed")
+                logger.success(f" {test_name} completed")
                 await asyncio.sleep(1)  # Brief pause between tests
             except Exception as e:
-                logger.error(f"❌ {test_name} failed: {e}")
+                logger.error(f"{test_name} failed: {e}")
 
         # Generate final report
         await self.generate_performance_report()
@@ -350,15 +349,15 @@ class EnhancedAPITester:
 
 async def main():
     """Main enhanced testing function"""
-    print("🚀 ENHANCED POCKETOPTION API TESTING")
+    print("ENHANCED POCKETOPTION API TESTING")
     print("=" * 80)
     print("Features being tested:")
-    print("  ✅ Enhanced Error Monitoring")
-    print("  ✅ Circuit Breaker Pattern")
-    print("  ✅ Health Checks")
-    print("  ✅ Performance Metrics")
-    print("  ✅ Concurrent Operations")
-    print("  ✅ Retry Policies")
+    print("   Enhanced Error Monitoring")
+    print("   Circuit Breaker Pattern")
+    print("   Health Checks")
+    print("   Performance Metrics")
+    print("   Concurrent Operations")
+    print("   Retry Policies")
     print("=" * 80)
     print()
 
@@ -367,7 +366,7 @@ async def main():
 
     if session_id == "test_session_id":
         logger.warning(
-            "⚠️  Using test session ID - set POCKET_OPTION_SSID for real testing"
+            " Using test session ID - set POCKET_OPTION_SSID for real testing"
         )
 
     # Create and run enhanced tester

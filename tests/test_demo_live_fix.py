@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Test script to verify the demo/live mode fix
 """
@@ -14,11 +13,11 @@ async def test_demo_live_fix():
     # Test SSID with demo=1 hardcoded (should be overridden by is_demo parameter)
     demo_ssid = r'42["auth",{"session":"n1p5ah5u8t9438rbunpgrq0hlq","isDemo":1,"uid":72645361,"platform":1,"isFastHistory":true}]'
 
-    print("🧪 Testing Demo/Live Mode Fix")
+    print("Testing Demo/Live Mode Fix")
     print("=" * 50)
 
     # Test 1: Demo mode with demo SSID (should work)
-    print("\n1️⃣ Test: is_demo=True with demo SSID")
+    print("\nTest: is_demo=True with demo SSID")
     client_demo = AsyncPocketOptionClient(ssid=demo_ssid, is_demo=True)
     formatted_demo = client_demo._format_session_message()
     parsed_demo = json.loads(formatted_demo[10:-1])  # Extract JSON part
@@ -27,10 +26,10 @@ async def test_demo_live_fix():
     print("   Constructor is_demo: True")
     print(f"   Client is_demo: {client_demo.is_demo}")
     print(f"   Formatted message isDemo: {parsed_demo['isDemo']}")
-    print(f"   ✅ Expected: 1, Got: {parsed_demo['isDemo']}")
+    print(f"    Expected: 1, Got: {parsed_demo['isDemo']}")
 
     # Test 2: Live mode with demo SSID (should override to live)
-    print("\n2️⃣ Test: is_demo=False with demo SSID")
+    print("\nTest: is_demo=False with demo SSID")
     client_live = AsyncPocketOptionClient(ssid=demo_ssid, is_demo=False)
     formatted_live = client_live._format_session_message()
     parsed_live = json.loads(formatted_live[10:-1])  # Extract JSON part
@@ -39,10 +38,10 @@ async def test_demo_live_fix():
     print("   Constructor is_demo: False")
     print(f"   Client is_demo: {client_live.is_demo}")
     print(f"   Formatted message isDemo: {parsed_live['isDemo']}")
-    print(f"   ✅ Expected: 0, Got: {parsed_live['isDemo']}")
+    print(f"    Expected: 0, Got: {parsed_live['isDemo']}")
 
     # Test 3: Raw session ID with demo mode
-    print("\n3️⃣ Test: Raw session with is_demo=True")
+    print("\nTest: Raw session with is_demo=True")
     raw_session = "n1p5ah5u8t9438rbunpgrq0hlq"
     client_raw_demo = AsyncPocketOptionClient(
         ssid=raw_session, is_demo=True, uid=72645361
@@ -53,10 +52,10 @@ async def test_demo_live_fix():
     print("   Constructor is_demo: True")
     print(f"   Client is_demo: {client_raw_demo.is_demo}")
     print(f"   Formatted message isDemo: {parsed_raw_demo['isDemo']}")
-    print(f"   ✅ Expected: 1, Got: {parsed_raw_demo['isDemo']}")
+    print(f"    Expected: 1, Got: {parsed_raw_demo['isDemo']}")
 
     # Test 4: Raw session ID with live mode
-    print("\n4️⃣ Test: Raw session with is_demo=False")
+    print("\nTest: Raw session with is_demo=False")
     client_raw_live = AsyncPocketOptionClient(
         ssid=raw_session, is_demo=False, uid=72645361
     )
@@ -66,7 +65,7 @@ async def test_demo_live_fix():
     print("   Constructor is_demo: False")
     print(f"   Client is_demo: {client_raw_live.is_demo}")
     print(f"   Formatted message isDemo: {parsed_raw_live['isDemo']}")
-    print(f"   ✅ Expected: 0, Got: {parsed_raw_live['isDemo']}")
+    print(f"    Expected: 0, Got: {parsed_raw_live['isDemo']}")
 
     # Test 5: Region selection based on demo mode
     print("\n5️⃣ Test: Region selection logic")
@@ -95,7 +94,7 @@ async def test_demo_live_fix():
     print(f"   Should use non-demo regions: {live_region_names}")
 
     print("\n" + "=" * 50)
-    print("✅ Demo/Live Mode Fix Test Complete!")
+    print(" Demo/Live Mode Fix Test Complete!")
 
     # Verify all tests passed
     demo_test_pass = parsed_demo["isDemo"] == 1
@@ -106,7 +105,7 @@ async def test_demo_live_fix():
     if all([demo_test_pass, live_test_pass, raw_demo_test_pass, raw_live_test_pass]):
         print("🎉 ALL TESTS PASSED! is_demo parameter is now properly respected!")
     else:
-        print("❌ Some tests failed. The fix needs adjustment.")
+        print("Some tests failed. The fix needs adjustment.")
 
     return all([demo_test_pass, live_test_pass, raw_demo_test_pass, raw_live_test_pass])
 

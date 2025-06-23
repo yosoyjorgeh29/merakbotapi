@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Integration Testing Script
 Tests all components of the PocketOption Async API working together
@@ -28,7 +27,7 @@ class IntegrationTester:
 
     async def run_full_integration_tests(self) -> Dict[str, Any]:
         """Run all integration tests"""
-        logger.info("🎯 Starting Full Integration Testing Suite")
+        logger.info("Starting Full Integration Testing Suite")
         logger.info("=" * 60)
 
         # Test phases
@@ -60,7 +59,7 @@ class IntegrationTester:
                     "details": result,
                 }
 
-                status_emoji = "✅" if result["success"] else "❌"
+                status_emoji = "" if result["success"] else "❌"
                 logger.info(
                     f"{status_emoji} {phase_name}: {'PASSED' if result['success'] else 'FAILED'} ({duration:.2f}s)"
                 )
@@ -900,9 +899,9 @@ async def run_integration_tests(ssid: str = None):
 
     if not ssid:
         ssid = r'42["auth",{"session":"integration_test_session","isDemo":1,"uid":0,"platform":1}]'
-        logger.warning("⚠️ Using demo SSID for integration testing")
+        logger.warning("Using demo SSID for integration testing")
 
-    logger.info("🎯 PocketOption API Integration Testing Suite")
+    logger.info("PocketOption API Integration Testing Suite")
     logger.info("=" * 60)
     logger.info("This comprehensive test validates all components working together")
     logger.info("")
@@ -919,7 +918,7 @@ async def run_integration_tests(ssid: str = None):
 
         summary = report["integration_summary"]
         logger.info(f"Tests Executed: {summary['total_tests']}")
-        logger.info(f"Passed: {summary['passed_tests']} ✅")
+        logger.info(f"Passed: {summary['passed_tests']} ")
         logger.info(f"Failed: {summary['failed_tests']} ❌")
         logger.info(f"Errors: {summary['error_tests']} 💥")
         logger.info(f"Success Rate: {summary['success_rate']:.1%}")
@@ -933,7 +932,7 @@ async def run_integration_tests(ssid: str = None):
         logger.info("-" * 30)
         assessment = report["system_assessment"]
         for aspect, details in assessment.items():
-            status_emoji = "✅" if details["status"] == "GOOD" else "⚠️"
+            status_emoji = "" if details["status"] == "GOOD" else "⚠️"
             logger.info(
                 f"{status_emoji} {aspect.title()}: {details['score']:.0f}/100 - {details['details']}"
             )
@@ -961,16 +960,16 @@ async def run_integration_tests(ssid: str = None):
                 "👍 GOOD: System is performing well with minor areas for improvement"
             )
         elif summary["health_score"] >= 60:
-            logger.warning("⚠️ FAIR: System has some issues that should be addressed")
+            logger.warning("FAIR: System has some issues that should be addressed")
         else:
             logger.error(
-                "❌ POOR: System has significant issues requiring immediate attention"
+                "POOR: System has significant issues requiring immediate attention"
             )
 
         return report
 
     except Exception as e:
-        logger.error(f"❌ Integration testing failed: {e}")
+        logger.error(f"Integration testing failed: {e}")
         raise
 
 

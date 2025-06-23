@@ -14,7 +14,7 @@ async def test_candles_retrieval():
     # Replace with your actual SSID
     ssid = "po_session_id=your_session_id_here"
 
-    print("🧪 Testing Candles Data Retrieval")
+    print("Testing Candles Data Retrieval")
     print("=" * 50)
 
     try:
@@ -38,10 +38,10 @@ async def test_candles_retrieval():
         candles = await client.get_candles(asset, timeframe, count)
 
         if candles:
-            print(f"\n✅ Successfully retrieved {len(candles)} candles!")
+            print(f"\n Successfully retrieved {len(candles)} candles!")
 
             # Display first few candles
-            print("\n📈 Sample candle data:")
+            print("\nSample candle data:")
             for i, candle in enumerate(candles[:5]):
                 print(
                     f"  {i + 1}. {candle.timestamp.strftime('%H:%M:%S')} - "
@@ -52,20 +52,20 @@ async def test_candles_retrieval():
                 print(f"  ... and {len(candles) - 5} more candles")
 
         else:
-            print("❌ No candles received - this may indicate an issue")
+            print("No candles received - this may indicate an issue")
 
         # Test 2: Get candles as DataFrame
         print("\n📊 Testing DataFrame conversion...")
         try:
             df = await client.get_candles_dataframe(asset, timeframe, count)
             if not df.empty:
-                print(f"✅ DataFrame created with {len(df)} rows")
+                print(f" DataFrame created with {len(df)} rows")
                 print(f"Columns: {list(df.columns)}")
                 print(f"Date range: {df.index[0]} to {df.index[-1]}")
             else:
-                print("❌ Empty DataFrame received")
+                print("Empty DataFrame received")
         except Exception as e:
-            print(f"❌ DataFrame test failed: {e}")
+            print(f"DataFrame test failed: {e}")
 
         # Test 3: Different timeframes
         print("\n⏱️ Testing different timeframes...")
@@ -75,11 +75,11 @@ async def test_candles_retrieval():
             try:
                 test_candles = await client.get_candles(asset, tf_seconds, 5)
                 if test_candles:
-                    print(f"✅ {tf_name}: {len(test_candles)} candles")
+                    print(f" {tf_name}: {len(test_candles)} candles")
                 else:
-                    print(f"❌ {tf_name}: No data")
+                    print(f"{tf_name}: No data")
             except Exception as e:
-                print(f"❌ {tf_name}: Error - {e}")
+                print(f"{tf_name}: Error - {e}")
 
         print("\n🔍 Testing different assets...")
         assets_to_test = ["EURUSD", "GBPUSD", "USDJPY"]
@@ -90,17 +90,17 @@ async def test_candles_retrieval():
                 if test_candles:
                     latest = test_candles[-1] if test_candles else None
                     print(
-                        f"✅ {test_asset}: Latest price {latest.close:.5f}"
+                        f" {test_asset}: Latest price {latest.close:.5f}"
                         if latest
-                        else f"✅ {test_asset}: {len(test_candles)} candles"
+                        else f" {test_asset}: {len(test_candles)} candles"
                     )
                 else:
-                    print(f"❌ {test_asset}: No data")
+                    print(f"{test_asset}: No data")
             except Exception as e:
-                print(f"❌ {test_asset}: Error - {e}")
+                print(f"{test_asset}: Error - {e}")
 
     except Exception as e:
-        print(f"❌ Test failed with error: {e}")
+        print(f"Test failed with error: {e}")
         import traceback
 
         traceback.print_exc()
@@ -108,7 +108,7 @@ async def test_candles_retrieval():
     finally:
         try:
             await client.disconnect()
-            print("\n🔌 Disconnected from PocketOption")
+            print("\nDisconnected from PocketOption")
         except:
             pass
 
@@ -151,7 +151,7 @@ async def test_candles_message_format():
 
 
 if __name__ == "__main__":
-    print("🧪 PocketOption Candles Test Suite")
+    print("PocketOption Candles Test Suite")
     print("=" * 40)
 
     # Test message format first
@@ -159,7 +159,7 @@ if __name__ == "__main__":
 
     # Then test actual retrieval (requires valid SSID)
     print("\n" + "=" * 40)
-    print("⚠️  To test actual candles retrieval:")
+    print(" To test actual candles retrieval:")
     print("1. Replace 'your_session_id_here' with your actual SSID")
     print("2. Uncomment the line below")
     print("=" * 40)

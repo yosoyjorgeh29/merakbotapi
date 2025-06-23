@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Test script to verify the place_order fix
 """
@@ -16,11 +15,11 @@ async def test_order_placement():
     client = AsyncPocketOptionClient(ssid=ssid, is_demo=True)
 
     try:
-        logger.info("🔌 Connecting to PocketOption...")
+        logger.info("Connecting to PocketOption...")
         await client.connect()
 
         if client.is_connected:
-            logger.success("✅ Connected successfully!")
+            logger.success(" Connected successfully!")
 
             # Wait for authentication and balance
             await asyncio.sleep(3)
@@ -28,14 +27,14 @@ async def test_order_placement():
             try:
                 balance = await client.get_balance()
                 if balance:
-                    logger.info(f"💰 Balance: ${balance.balance:.2f}")
+                    logger.info(f"Balance: ${balance.balance:.2f}")
                 else:
-                    logger.warning("⚠️ No balance data received")
+                    logger.warning("No balance data received")
             except Exception as e:
-                logger.info(f"ℹ️ Balance error (expected with demo): {e}")
+                logger.info(f"Balance error (expected with demo): {e}")
 
             # Test placing an order (this should now work without the order_id error)
-            logger.info("📈 Testing order placement...")
+            logger.info("esting order placement...")
             try:
                 order_result = await client.place_order(
                     asset="EURUSD_otc",
@@ -44,7 +43,7 @@ async def test_order_placement():
                     duration=60,
                 )
 
-                logger.success("✅ Order placed successfully!")
+                logger.success(" Order placed successfully!")
                 logger.info(f"   Order ID: {order_result.order_id}")
                 logger.info(f"   Status: {order_result.status}")
                 logger.info(f"   Asset: {order_result.asset}")
@@ -52,26 +51,26 @@ async def test_order_placement():
                 logger.info(f"   Direction: {order_result.direction}")
 
             except Exception as e:
-                logger.error(f"❌ Order placement failed: {e}")
+                logger.error(f"Order placement failed: {e}")
                 # Check if it's the same error as before
                 if "'Order' object has no attribute 'order_id'" in str(e):
-                    logger.error("❌ The original error is still present!")
+                    logger.error("The original error is still present!")
                 else:
                     logger.info(
-                        "ℹ️ Different error (this is expected with demo connection)"
+                        "Different error (this is expected with demo connection)"
                     )
         else:
-            logger.warning("⚠️ Connection failed (expected with demo SSID)")
+            logger.warning("Connection failed (expected with demo SSID)")
 
     except Exception as e:
-        logger.error(f"❌ Connection error: {e}")
+        logger.error(f"Connection error: {e}")
 
     finally:
         await client.disconnect()
-        logger.info("🔌 Disconnected")
+        logger.info("Disconnected")
 
 
 if __name__ == "__main__":
-    logger.info("🧪 Testing Order Placement Fix")
+    logger.info("Testing Order Placement Fix")
     logger.info("=" * 50)
     asyncio.run(test_order_placement())

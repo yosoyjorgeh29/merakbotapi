@@ -148,3 +148,7 @@ Thumbs.db
 # Windows
 *.tmp
 *.temp
+
+# SSID driver
+
+browser_profiles*

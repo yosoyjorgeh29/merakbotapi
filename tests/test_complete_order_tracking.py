@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Complete Order Tracking Test
 Tests the full order lifecycle including waiting for trade completion and profit/loss tracking
@@ -19,11 +18,11 @@ async def wait_for_trade_completion():
     ssid = os.getenv("POCKET_OPTION_SSID")
 
     if not ssid:
-        print("❌ Please set POCKET_OPTION_SSID environment variable")
+        print("Please set POCKET_OPTION_SSID environment variable")
         print("Example: set POCKET_OPTION_SSID='your_session_id_here'")
         return
 
-    print("🚀 Complete Order Tracking Test")
+    print("Complete Order Tracking Test")
     print("=" * 50)
 
     # Create client
@@ -35,10 +34,10 @@ async def wait_for_trade_completion():
         await client.connect()
 
         if not client.is_connected:
-            print("❌ Failed to connect")
+            print("Failed to connect")
             return
 
-        print("✅ Connected successfully")
+        print(" Connected successfully")
 
         # Wait for initialization
         await asyncio.sleep(3)
@@ -46,9 +45,9 @@ async def wait_for_trade_completion():
         # Get balance
         balance = await client.get_balance()
         if balance:
-            print(f"💰 Balance: ${balance.balance:.2f} (Demo: {balance.is_demo})")
+            print(f"Balance: ${balance.balance:.2f} (Demo: {balance.is_demo})")
         else:
-            print("⚠️ No balance received")
+            print("No balance received")
 
         # Add event callback to monitor order completion
         completed_orders = []
@@ -62,12 +61,12 @@ async def wait_for_trade_completion():
                 if order_result.profit < 0
                 else "EVEN"
             )
-            print(f"🎯 Order completed: {status} - Profit: ${order_result.profit:.2f}")
+            print(f"Order completed: {status} - Profit: ${order_result.profit:.2f}")
 
         client.add_event_callback("order_closed", on_order_closed)
 
         # Place a test order with shorter duration for faster results
-        print("\n📈 Placing test order...")
+        print("\nPlacing test order...")
         order_result = await client.place_order(
             asset="EURUSD_otc",
             amount=1.0,
@@ -75,7 +74,7 @@ async def wait_for_trade_completion():
             duration=60,  # 1 minute for quick testing
         )
 
-        print(f"✅ Order placed: {order_result.order_id}")
+        print(f" Order placed: {order_result.order_id}")
         print(f"   Status: {order_result.status}")
         print(f"   Asset: {order_result.asset}")
         print(f"   Amount: ${order_result.amount}")
@@ -86,9 +85,9 @@ async def wait_for_trade_completion():
         # Check immediate order result
         immediate_result = await client.check_order_result(order_result.order_id)
         if immediate_result:
-            print("✅ Order immediately found in tracking system")
+            print(" Order immediately found in tracking system")
         else:
-            print("❌ Order NOT found in tracking system - this is a problem!")
+            print("Order NOT found in tracking system - this is a problem!")
             return
 
         # Wait for the trade to complete
@@ -127,7 +126,7 @@ async def wait_for_trade_completion():
                         if result.profit < 0
                         else "EVEN"
                     )
-                    print("\n🎯 TRADE COMPLETED!")
+                    print("\nTRADE COMPLETED!")
                     print(f"   Result: {win_lose}")
                     print(f"   Profit/Loss: ${result.profit:.2f}")
                     if result.payout:
@@ -147,14 +146,14 @@ async def wait_for_trade_completion():
                     )
 
             else:
-                print("   ❌ Order disappeared from tracking system")
+                print("   Order disappeared from tracking system")
                 break
 
             await asyncio.sleep(2)  # Check every 2 seconds
 
         # Check if we completed via event callback
         if completed_orders:
-            print("\n✅ Order completion detected via event callback!")
+            print("\n Order completion detected via event callback!")
             final_order = completed_orders[0]
             print(f"   Final profit: ${final_order.profit:.2f}")
 
@@ -167,25 +166,25 @@ async def wait_for_trade_completion():
             if final_result.profit is not None:
                 print(f"   Final Profit/Loss: ${final_result.profit:.2f}")
             else:
-                print("   ⚠️ No profit data available (may indicate tracking issue)")
+                print("   No profit data available (may indicate tracking issue)")
         else:
-            print("\n❌ Could not find final order result")
+            print("\nCould not find final order result")
 
         # Show active orders count
         active_orders = await client.get_active_orders()
         print(f"\n📊 Active orders remaining: {len(active_orders)}")
 
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
         import traceback
 
         traceback.print_exc()
 
     finally:
         # Disconnect
-        print("\n🔌 Disconnecting...")
+        print("\nDisconnecting...")
         await client.disconnect()
-        print("✅ Test completed")
+        print(" Test completed")
 
 
 if __name__ == "__main__":

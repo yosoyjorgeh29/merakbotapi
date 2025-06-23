@@ -11,29 +11,6 @@ from loguru import logger
 
 from .models import Candle, OrderResult
 
-async def fetch_ssid():
-    urls = [
-        "wss://ws.pocketoption.com/socket.io/?EIO=3&transport=websocket",
-        "wss://ws-demo.pocketoption.com/socket.io/?EIO=3&transport=websocket",
-    ]
-    
-    for uri in urls:
-        try:
-            async with websockets.connect(uri) as websocket:
-                while True:
-                    message = await websocket.recv()
-                    if message.startswith('42["auth"'):
-                        return message
-                    elif message == '2':
-                        await websocket.send('3')
-                    elif message.startswith('0'):
-                        sid = message.split('"sid":"')[1].split('"')[0]
-                        await websocket.send(f'2/{sid}')
-        except Exception as e:
-            print(f"Failed to connect to {uri}: {e}")
-            continue
-    
-    raise Exception("Unable to fetch SSID from any endpoint")
 
 def format_session_id(
     session_id: str,
@@ -69,17 +46,7 @@ def format_session_id(
 
     return f'42["auth",{json.dumps(auth_data)}]'
 
-async def main():
-    # Complete SSID format (get from browser dev tools)
-    ssid = r'42["auth",{"session":"your_session_here","isDemo":1,"uid":12345,"platform":1}]'
-    
-    # Create client with persistent connection
-    client = AsyncPocketOptionClient(
-        ssid, 
-        is_demo=True,
-        persistent_connection=True,  # Enable keep-alive
-        auto_reconnect=True         # Enable auto-reconnection
-    )
+
 def calculate_payout_percentage(
     entry_price: float, exit_price: float, direction: str, payout_rate: float = 0.8
 ) -> float:

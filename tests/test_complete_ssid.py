@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Test script demonstrating complete SSID format handling
 """
@@ -12,7 +11,7 @@ from pocketoptionapi_async import AsyncPocketOptionClient
 async def test_complete_ssid_format():
     """Test the complete SSID format functionality"""
 
-    print("🧪 Testing Complete SSID Format Handling")
+    print("Testing Complete SSID Format Handling")
     print("=" * 50)
 
     # Test 1: Complete SSID format (what the user wants)
@@ -29,30 +28,30 @@ async def test_complete_ssid_format():
         # Check that the SSID is handled correctly
         formatted_message = client._format_session_message()
 
-        print("✅ Client created successfully")
+        print(" Client created successfully")
         print(f"📤 Formatted message: {formatted_message[:50]}...")
         print(f"🔍 Session extracted: {getattr(client, 'session_id', 'N/A')[:20]}...")
         print(f"👤 UID extracted: {client.uid}")
         print(f"🏷️  Platform: {client.platform}")
-        print(f"🎯 Demo mode: {client.is_demo}")
+        print(f"Demo mode: {client.is_demo}")
         print(f"⚡ Fast history: {client.is_fast_history}")
 
         # Test connection (will fail with test SSID but should show proper format)
-        print("\n🔌 Testing connection...")
+        print("\nTesting connection...")
         try:
             await client.connect()
             if client.is_connected:
-                print("✅ Connected successfully!")
+                print(" Connected successfully!")
                 print(f"📊 Connection info: {client.connection_info}")
             else:
-                print("ℹ️  Connection failed (expected with test SSID)")
+                print(" Connection failed (expected with test SSID)")
         except Exception as e:
-            print(f"ℹ️  Connection error (expected): {str(e)[:100]}...")
+            print(f" Connection error (expected): {str(e)[:100]}...")
 
         await client.disconnect()
 
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
 
     print("\n" + "=" * 50)
 
@@ -71,17 +70,17 @@ async def test_complete_ssid_format():
 
         formatted_message2 = client2._format_session_message()
 
-        print("✅ Client created successfully")
+        print(" Client created successfully")
         print(f"📤 Formatted message: {formatted_message2[:50]}...")
         print(f"🔍 Session: {getattr(client2, 'session_id', 'N/A')}")
         print(f"👤 UID: {client2.uid}")
         print(f"🏷️  Platform: {client2.platform}")
 
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
 
     print("\n" + "=" * 50)
-    print("✅ SSID Format Tests Completed!")
+    print(" SSID Format Tests Completed!")
 
 
 async def test_real_connection():
@@ -94,7 +93,7 @@ async def test_real_connection():
     real_ssid = os.getenv("POCKET_OPTION_SSID")
 
     if not real_ssid:
-        print("ℹ️  No real SSID found in environment variable POCKET_OPTION_SSID")
+        print(" No real SSID found in environment variable POCKET_OPTION_SSID")
         print("   Set it like this for real testing:")
         print(
             '   export POCKET_OPTION_SSID=\'42["auth",{"session":"your_session","isDemo":1,"uid":your_uid,"platform":1}]\''
@@ -106,38 +105,38 @@ async def test_real_connection():
     try:
         client = AsyncPocketOptionClient(ssid=real_ssid)
 
-        print("🔌 Attempting real connection...")
+        print("Attempting real connection...")
         await client.connect()
 
         if client.is_connected:
-            print("✅ Successfully connected!")
+            print(" Successfully connected!")
 
             # Test basic functionality
             try:
                 balance = await client.get_balance()
-                print(f"💰 Balance: ${balance.balance:.2f}")
+                print(f"Balance: ${balance.balance:.2f}")
 
                 # Test health status
                 health = await client.get_health_status()
                 print(f"🏥 Health: {health}")
 
             except Exception as e:
-                print(f"⚠️  API error: {e}")
+                print(f" API error: {e}")
 
         else:
-            print("❌ Connection failed")
+            print("Connection failed")
 
         await client.disconnect()
-        print("🔌 Disconnected")
+        print("Disconnected")
 
     except Exception as e:
-        print(f"❌ Connection error: {e}")
+        print(f"Connection error: {e}")
 
 
 async def main():
     """Main test function"""
 
-    print("🚀 PocketOption SSID Format Test Suite")
+    print("PocketOption SSID Format Test Suite")
     print("=" * 60)
     print()
 

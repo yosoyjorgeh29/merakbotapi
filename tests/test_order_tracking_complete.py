@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Complete Order Tracking Test - Final Version
 Tests all the fixes made to the order tracking system:
@@ -23,11 +22,11 @@ async def test_complete_order_lifecycle():
     ssid = os.getenv("POCKET_OPTION_SSID")
 
     if not ssid:
-        print("❌ Please set POCKET_OPTION_SSID environment variable")
+        print("Please set POCKET_OPTION_SSID environment variable")
         print("Example: set POCKET_OPTION_SSID='your_session_id_here'")
         return
 
-    print("🚀 Complete Order Tracking Test - Final Version")
+    print("Complete Order Tracking Test - Final Version")
     print("=" * 60)
 
     # Create client
@@ -39,10 +38,10 @@ async def test_complete_order_lifecycle():
         await client.connect()
 
         if not client.is_connected:
-            print("❌ Failed to connect")
+            print("Failed to connect")
             return
 
-        print("✅ Connected successfully")
+        print(" Connected successfully")
 
         # Wait for initialization
         await asyncio.sleep(3)
@@ -50,9 +49,9 @@ async def test_complete_order_lifecycle():
         # Get balance
         balance = await client.get_balance()
         if balance:
-            print(f"💰 Balance: ${balance.balance:.2f} (Demo: {balance.is_demo})")
+            print(f"Balance: ${balance.balance:.2f} (Demo: {balance.is_demo})")
         else:
-            print("⚠️ No balance received")
+            print("No balance received")
 
         # Test 1: Order Placement (should not create duplicates)
         print("\n📋 TEST 1: Order Placement Without Duplication")
@@ -63,7 +62,7 @@ async def test_complete_order_lifecycle():
         print(f"📊 Initial active orders: {len(initial_active)}")
 
         # Place order
-        print("📈 Placing order...")
+        print("Placing order...")
         order_result = await client.place_order(
             asset="EURUSD_otc",
             amount=1.0,
@@ -71,7 +70,7 @@ async def test_complete_order_lifecycle():
             duration=60,  # 1 minute
         )
 
-        print(f"✅ Order placed: {order_result.order_id}")
+        print(f" Order placed: {order_result.order_id}")
         print(f"   Status: {order_result.status}")
         print(f"   Asset: {order_result.asset}")
         print(f"   Amount: ${order_result.amount}")
@@ -87,9 +86,9 @@ async def test_complete_order_lifecycle():
         added_orders = len(active_orders_after) - len(initial_active)
 
         if added_orders == 1:
-            print("✅ PASS: Exactly 1 order was created (no duplication)")
+            print(" PASS: Exactly 1 order was created (no duplication)")
         else:
-            print(f"❌ FAIL: {added_orders} orders were created (expected 1)")
+            print(f"FAIL: {added_orders} orders were created (expected 1)")
             for order in active_orders_after:
                 print(f"   - {order.order_id}: {order.status}")
 
@@ -100,11 +99,11 @@ async def test_complete_order_lifecycle():
         # Immediate check
         immediate_result = await client.check_order_result(order_result.order_id)
         if immediate_result:
-            print("✅ Order immediately found in tracking system")
+            print(" Order immediately found in tracking system")
             print(f"   ID: {immediate_result.order_id}")
             print(f"   Status: {immediate_result.status}")
         else:
-            print("❌ Order NOT found in tracking system - this is a problem!")
+            print("Order NOT found in tracking system - this is a problem!")
             return
 
         # Test 4: Event-Based Order Completion Monitoring
@@ -124,7 +123,7 @@ async def test_complete_order_lifecycle():
                 else "EVEN"
             )
             print(
-                f"🎯 ORDER COMPLETED via EVENT: {status} - Profit: ${order_result.profit:.2f}"
+                f"ORDER COMPLETED via EVENT: {status} - Profit: ${order_result.profit:.2f}"
             )
 
         client.add_event_callback("order_closed", on_order_closed)
@@ -168,7 +167,7 @@ async def test_complete_order_lifecycle():
                         if result.profit < 0
                         else "EVEN"
                     )
-                    print("\n🎯 TRADE COMPLETED!")
+                    print("\nTRADE COMPLETED!")
                     print(f"   Result: {win_lose}")
                     print(f"   Profit/Loss: ${result.profit:.2f}")
                     if result.payout:
@@ -188,7 +187,7 @@ async def test_complete_order_lifecycle():
                     )
 
             else:
-                print("   ❌ Order disappeared from tracking system")
+                print("   Order disappeared from tracking system")
                 break
 
             await asyncio.sleep(2)  # Check every 2 seconds
@@ -199,21 +198,21 @@ async def test_complete_order_lifecycle():
 
         # Check if we completed via event callback
         if completed_orders:
-            print("✅ Order completion detected via EVENT callback!")
+            print(" Order completion detected via EVENT callback!")
             final_order_event = completed_orders[0]
             print(f"   Event Result - Profit: ${final_order_event.profit:.2f}")
         else:
-            print("⚠️ No completion event received")
+            print("No completion event received")
 
         # Check final polling result
         final_result_poll = await client.check_order_result(order_result.order_id)
         if final_result_poll:
-            print("✅ Order completion detected via POLLING!")
+            print(" Order completion detected via POLLING!")
             print(
                 f"   Polling Result - Profit: ${final_result_poll.profit:.2f if final_result_poll.profit is not None else 'None'}"
             )
         else:
-            print("❌ Order not found via polling")
+            print("Order not found via polling")
 
         # Test 7: Final System State
         print("\n📋 TEST 7: Final System State")
@@ -235,62 +234,62 @@ async def test_complete_order_lifecycle():
 
         # Test results
         if added_orders == 1:
-            print("✅ Order Placement (No Duplication): PASS")
+            print(" Order Placement (No Duplication): PASS")
             tests_passed += 1
         else:
-            print("❌ Order Placement (No Duplication): FAIL")
+            print("Order Placement (No Duplication): FAIL")
 
         if immediate_result:
-            print("✅ Order Tracking: PASS")
+            print(" Order Tracking: PASS")
             tests_passed += 1
         else:
-            print("❌ Order Tracking: FAIL")
+            print("Order Tracking: FAIL")
 
         if completed_orders:
-            print("✅ Event-Based Completion: PASS")
+            print(" Event-Based Completion: PASS")
             tests_passed += 1
         else:
-            print("❌ Event-Based Completion: FAIL")
+            print("Event-Based Completion: FAIL")
 
         if final_result_poll and final_result_poll.profit is not None:
-            print("✅ Polling-Based Completion: PASS")
+            print(" Polling-Based Completion: PASS")
             tests_passed += 1
         else:
-            print("❌ Polling-Based Completion: FAIL")
+            print("Polling-Based Completion: FAIL")
 
         # Additional checks
         if len(final_active_orders) < len(active_orders_after):
-            print("✅ Order Movement (Active -> Completed): PASS")
+            print(" Order Movement (Active -> Completed): PASS")
             tests_passed += 1
         else:
-            print("❌ Order Movement (Active -> Completed): FAIL")
+            print("Order Movement (Active -> Completed): FAIL")
 
         if balance:
-            print("✅ Balance Retrieval: PASS")
+            print(" Balance Retrieval: PASS")
             tests_passed += 1
         else:
-            print("❌ Balance Retrieval: FAIL")
+            print("Balance Retrieval: FAIL")
 
-        print(f"\n🎯 OVERALL RESULT: {tests_passed}/{total_tests} tests passed")
+        print(f"\nOVERALL RESULT: {tests_passed}/{total_tests} tests passed")
 
         if tests_passed >= 5:
             print("🎉 ORDER TRACKING SYSTEM IS WORKING WELL!")
         elif tests_passed >= 3:
-            print("⚠️ Order tracking is partially working, some improvements needed")
+            print("Order tracking is partially working, some improvements needed")
         else:
-            print("❌ Major issues with order tracking system")
+            print("Major issues with order tracking system")
 
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
         import traceback
 
         traceback.print_exc()
 
     finally:
         # Disconnect
-        print("\n🔌 Disconnecting...")
+        print("\nDisconnecting...")
         await client.disconnect()
-        print("✅ Test completed")
+        print(" Test completed")
 
 
 if __name__ == "__main__":

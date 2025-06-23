@@ -16,7 +16,7 @@ from pocketoptionapi_async import (
 async def test_basic_functionality():
     """Test basic functionality of the new async API"""
 
-    print("🧪 Testing Professional Async PocketOption API")
+    print("Testing Professional Async PocketOption API")
     print("=" * 50)
 
     # Complete SSID format for testing (replace with real one for live testing)
@@ -27,7 +27,7 @@ async def test_basic_functionality():
 
     if "n1p5ah5u8t9438rbunpgrq0hlq" in complete_ssid:
         print(
-            "⚠️  Using mock SSID. Set POCKET_OPTION_SSID environment variable for live testing."
+            " Using mock SSID. Set POCKET_OPTION_SSID environment variable for live testing."
         )
         print(
             '   Format: export POCKET_OPTION_SSID=\'42["auth",{"session":"your_session","isDemo":1,"uid":your_uid,"platform":1}]\''
@@ -35,33 +35,33 @@ async def test_basic_functionality():
 
     try:
         # Test 1: Client initialization
-        print("\n1️⃣ Testing client initialization...")
+        print("\nTesting client initialization...")
         client = AsyncPocketOptionClient(ssid=complete_ssid, is_demo=True)
-        print("✅ Client initialized successfully")
+        print(" Client initialized successfully")
 
         # Test 2: Connection (will fail with mock session, but tests the flow)
-        print("\n2️⃣ Testing connection...")
+        print("\nTesting connection...")
         try:
             await client.connect()
-            print("✅ Connected successfully")
+            print(" Connected successfully")
 
             # Test 3: Get balance
-            print("\n3️⃣ Testing balance retrieval...")
+            print("\nTesting balance retrieval...")
             try:
                 balance = await client.get_balance()
-                print(f"✅ Balance: ${balance.balance:.2f} ({balance.currency})")
+                print(f" Balance: ${balance.balance:.2f} ({balance.currency})")
             except Exception as e:
-                print(f"ℹ️ Balance test: {e}")
+                print(f"Balance test: {e}")
 
             # Test 4: Get candles
-            print("\n4️⃣ Testing candles retrieval...")
+            print("\nTesting candles retrieval...")
             try:
                 candles = await client.get_candles(
                     asset="EURUSD_otc", timeframe="1m", count=10
                 )
-                print(f"✅ Retrieved {len(candles)} candles")
+                print(f" Retrieved {len(candles)} candles")
             except Exception as e:
-                print(f"ℹ️ Candles test: {e}")
+                print(f"Candles test: {e}")
 
             # Test 5: Order placement (demo)
             print("\n5️⃣ Testing order placement...")
@@ -72,30 +72,30 @@ async def test_basic_functionality():
                     direction=OrderDirection.CALL,
                     duration=60,
                 )
-                print(f"✅ Order placed: {order_result.order_id}")
+                print(f" Order placed: {order_result.order_id}")
             except Exception as e:
-                print(f"ℹ️ Order test: {e}")
+                print(f"Order test: {e}")
 
         except ConnectionError as e:
-            print(f"ℹ️ Connection test (expected with mock session): {e}")
+            print(f"Connection test (expected with mock session): {e}")
 
         finally:
             # Test 6: Disconnection
             print("\n6️⃣ Testing disconnection...")
             await client.disconnect()
-            print("✅ Disconnected successfully")
+            print(" Disconnected successfully")
 
     except Exception as e:
-        print(f"❌ Unexpected error: {e}")
+        print(f"Unexpected error: {e}")
 
-    print("\n🎯 API Structure Tests")
+    print("\nAPI Structure Tests")
     print("=" * 30)
 
     # Test API structure
     test_api_structure()
 
-    print("\n✅ All tests completed!")
-    print("\n📖 Next steps:")
+    print("\n All tests completed!")
+    print("\nNext steps:")
     print(
         "   1. Set your real session ID: $env:POCKET_OPTION_SSID='your_real_session_id'"
     )
@@ -120,20 +120,20 @@ def test_api_structure():
             REGIONS,
         )
 
-        print("✅ All imports successful")
+        print(" All imports successful")
     except ImportError as e:
-        print(f"❌ Import error: {e}")
+        print(f"Import error: {e}")
         return
 
     # Test enums
     assert OrderDirection.CALL == "call"
     assert OrderDirection.PUT == "put"
-    print("✅ Enums working correctly")
+    print(" Enums working correctly")
 
     # Test constants
     assert "EURUSD_otc" in ASSETS
     assert len(REGIONS.get_all()) > 0
-    print("✅ Constants available")
+    print(" Constants available")
 
     # Test model validation
     try:
@@ -141,7 +141,7 @@ def test_api_structure():
         Order(
             asset="EURUSD_otc", amount=10.0, direction=OrderDirection.CALL, duration=120
         )
-        print("✅ Model validation working")
+        print(" Model validation working")
 
         # Invalid order (should raise ValueError)
         try:
@@ -151,12 +151,12 @@ def test_api_structure():
                 direction=OrderDirection.CALL,
                 duration=120,
             )
-            print("❌ Model validation not working")
+            print("Model validation not working")
         except ValueError:
-            print("✅ Model validation correctly catches errors")
+            print(" Model validation correctly catches errors")
 
     except Exception as e:
-        print(f"❌ Model test error: {e}")
+        print(f"Model test error: {e}")
 
 
 async def test_context_manager():
@@ -168,11 +168,11 @@ async def test_context_manager():
 
     try:
         async with AsyncPocketOptionClient(session_id, is_demo=True) as client:
-            print("✅ Context manager entry successful")
+            print(" Context manager entry successful")
             assert client is not None
-        print("✅ Context manager exit successful")
+        print(" Context manager exit successful")
     except Exception as e:
-        print(f"ℹ️ Context manager test (expected with mock): {e}")
+        print(f"Context manager test (expected with mock): {e}")
 
 
 async def test_event_callbacks():
@@ -191,32 +191,32 @@ async def test_event_callbacks():
         callback_called = True
 
     client.add_event_callback("test_event", test_callback)
-    print("✅ Event callback registered")
+    print(" Event callback registered")
 
     # Test callback removal
     client.remove_event_callback("test_event", test_callback)
-    print("✅ Event callback removed")
+    print(" Event callback removed")
 
 
 def print_api_features():
     """Print the key features of the new API"""
 
-    print("\n🚀 NEW ASYNC API FEATURES")
+    print("\nNEW ASYNC API FEATURES")
     print("=" * 40)
 
     features = [
-        "✅ 100% Async/Await Support",
-        "✅ Type Safety with Pydantic Models",
-        "✅ Professional Error Handling",
-        "✅ Automatic Connection Management",
-        "✅ Event-Driven Architecture",
-        "✅ pandas DataFrame Integration",
-        "✅ Built-in Rate Limiting",
-        "✅ Context Manager Support",
-        "✅ Comprehensive Testing",
-        "✅ Rich Logging with loguru",
-        "✅ WebSocket Auto-Reconnection",
-        "✅ Modern Python Practices",
+        " 100% Async/Await Support",
+        " Type Safety with Pydantic Models",
+        " Professional Error Handling",
+        " Automatic Connection Management",
+        " Event-Driven Architecture",
+        " pandas DataFrame Integration",
+        " Built-in Rate Limiting",
+        " Context Manager Support",
+        " Comprehensive Testing",
+        " Rich Logging with loguru",
+        " WebSocket Auto-Reconnection",
+        " Modern Python Practices",
     ]
 
     for feature in features:

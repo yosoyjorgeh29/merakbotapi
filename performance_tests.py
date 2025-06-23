@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Performance Tests for PocketOption Async API
 """
@@ -261,7 +260,7 @@ class PerformanceTester:
 
     async def generate_performance_report(self) -> str:
         """Generate comprehensive performance report"""
-        logger.info("🚀 Starting comprehensive performance tests...")
+        logger.info("Starting comprehensive performance tests...")
 
         report = []
         report.append("=" * 60)
@@ -270,31 +269,35 @@ class PerformanceTester:
         report.append("")
 
         # Test 1: Connection Performance
-        report.append("📡 CONNECTION PERFORMANCE")
+        report.append("Connection: CONNECTION PERFORMANCE")
         report.append("-" * 30)
         try:
             conn_results = await self.test_connection_performance()
             if conn_results.get("success_rate", 0) > 0:
                 report.append(
-                    f"✅ Average Connection Time: {conn_results['avg_time']:.3f}s"
+                    f"Success: Average Connection Time: {conn_results['avg_time']:.3f}s"
                 )
                 report.append(
-                    f"✅ Min Connection Time: {conn_results['min_time']:.3f}s"
+                    f"Success: Min Connection Time: {conn_results['min_time']:.3f}s"
                 )
                 report.append(
-                    f"✅ Max Connection Time: {conn_results['max_time']:.3f}s"
+                    f"Success: Max Connection Time: {conn_results['max_time']:.3f}s"
                 )
-                report.append(f"✅ Success Rate: {conn_results['success_rate']:.1f}%")
-                report.append(f"✅ Standard Deviation: {conn_results['std_dev']:.3f}s")
+                report.append(
+                    f"Success: Success Rate: {conn_results['success_rate']:.1f}%"
+                )
+                report.append(
+                    f"Success: Standard Deviation: {conn_results['std_dev']:.3f}s"
+                )
             else:
-                report.append("❌ Connection tests failed")
+                report.append("Error: Connection tests failed")
         except Exception as e:
-            report.append(f"❌ Connection test error: {e}")
+            report.append(f"Error: Connection test error: {e}")
 
         report.append("")
 
         # Test 2: Data Retrieval Performance
-        report.append("📊 DATA RETRIEVAL PERFORMANCE")
+        report.append("Statistics: DATA RETRIEVAL PERFORMANCE")
         report.append("-" * 35)
         try:
             data_results = await self.test_data_retrieval_performance()
@@ -305,30 +308,32 @@ class PerformanceTester:
                     f"    Range: {stats['min_time']:.3f}s - {stats['max_time']:.3f}s"
                 )
         except Exception as e:
-            report.append(f"❌ Data retrieval test error: {e}")
+            report.append(f"Error: Data retrieval test error: {e}")
 
         report.append("")
 
         # Test 3: Concurrent Operations
-        report.append("⚡ CONCURRENT OPERATIONS")
+        report.append("Performance: CONCURRENT OPERATIONS")
         report.append("-" * 25)
         try:
             concurrent_results = await self.test_concurrent_operations()
             if concurrent_results.get("success_rate", 0) > 0:
                 report.append(
-                    f"✅ Success Rate: {concurrent_results['success_rate']:.1f}%"
+                    f"Success: Success Rate: {concurrent_results['success_rate']:.1f}%"
                 )
                 report.append(
-                    f"✅ Operations/Second: {concurrent_results['operations_per_second']:.2f}"
+                    f"Success: Operations/Second: {concurrent_results['operations_per_second']:.2f}"
                 )
                 report.append(
-                    f"✅ Avg Operation Time: {concurrent_results['avg_operation_time']:.3f}s"
+                    f"Success: Avg Operation Time: {concurrent_results['avg_operation_time']:.3f}s"
                 )
-                report.append(f"✅ Total Time: {concurrent_results['total_time']:.3f}s")
+                report.append(
+                    f"Success: Total Time: {concurrent_results['total_time']:.3f}s"
+                )
             else:
-                report.append("❌ Concurrent operations failed")
+                report.append("Error: Concurrent operations failed")
         except Exception as e:
-            report.append(f"❌ Concurrent test error: {e}")
+            report.append(f"Error: Concurrent test error: {e}")
 
         report.append("")
         report.append("=" * 60)

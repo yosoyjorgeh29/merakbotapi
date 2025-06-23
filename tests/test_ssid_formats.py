@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Test script to demonstrate the updated SSID handling in PocketOption Async API
 """
@@ -11,49 +10,49 @@ from pocketoptionapi_async import AsyncPocketOptionClient
 async def test_ssid_formats():
     """Test different SSID format handling"""
 
-    print("🧪 Testing SSID Format Handling")
+    print("Testing SSID Format Handling")
     print("=" * 50)
 
     # Test 1: Complete SSID format (as provided by user)
     complete_ssid = '42["auth",{"session":"n1p5ah5u8t9438rbunpgrq0hlq","isDemo":1,"uid":72645361,"platform":1,"isFastHistory":true}]'
 
-    print("1️⃣ Testing Complete SSID Format")
+    print("Testing Complete SSID Format")
     print(f"Input: {complete_ssid}")
 
     client1 = AsyncPocketOptionClient(ssid=complete_ssid)
 
     # Verify parsing
-    print(f"✅ Parsed session: {client1.session_id}")
-    print(f"✅ Parsed demo: {client1.is_demo}")
-    print(f"✅ Parsed UID: {client1.uid}")
-    print(f"✅ Parsed platform: {client1.platform}")
-    print(f"✅ Parsed fast history: {client1.is_fast_history}")
+    print(f" Parsed session: {client1.session_id}")
+    print(f" Parsed demo: {client1.is_demo}")
+    print(f" Parsed UID: {client1.uid}")
+    print(f" Parsed platform: {client1.platform}")
+    print(f" Parsed fast history: {client1.is_fast_history}")
 
     formatted_message = client1._format_session_message()
-    print(f"✅ Formatted message: {formatted_message}")
+    print(f" Formatted message: {formatted_message}")
     print()
 
     # Test 2: Raw session ID
     raw_session = "n1p5ah5u8t9438rbunpgrq0hlq"
 
-    print("2️⃣ Testing Raw Session ID")
+    print("Testing Raw Session ID")
     print(f"Input: {raw_session}")
 
     client2 = AsyncPocketOptionClient(
         ssid=raw_session, is_demo=True, uid=72645361, platform=1, is_fast_history=True
     )
 
-    print(f"✅ Session: {client2.session_id}")
-    print(f"✅ Demo: {client2.is_demo}")
-    print(f"✅ UID: {client2.uid}")
-    print(f"✅ Platform: {client2.platform}")
+    print(f" Session: {client2.session_id}")
+    print(f" Demo: {client2.is_demo}")
+    print(f" UID: {client2.uid}")
+    print(f" Platform: {client2.platform}")
 
     formatted_message2 = client2._format_session_message()
-    print(f"✅ Formatted message: {formatted_message2}")
+    print(f" Formatted message: {formatted_message2}")
     print()
 
     # Test 3: Verify both produce same result
-    print("3️⃣ Comparing Results")
+    print("Comparing Results")
 
     # Parse the JSON parts to compare
     def extract_auth_data(msg):
@@ -75,31 +74,31 @@ async def test_ssid_formats():
     )
 
     if fields_match:
-        print("✅ Both methods produce equivalent authentication data!")
+        print(" Both methods produce equivalent authentication data!")
     else:
-        print("❌ Authentication data mismatch!")
+        print("Authentication data mismatch!")
 
     print()
 
     # Test 4: Test connection with real SSID format (mock)
-    print("4️⃣ Testing Connection with Complete SSID")
+    print("Testing Connection with Complete SSID")
 
     try:
         # This will fail with test data, but should show proper SSID handling
         await client1.connect()
-        print("✅ Connection successful")
+        print(" Connection successful")
     except Exception as e:
-        print(f"ℹ️ Expected connection failure with test data: {e}")
+        print(f"Expected connection failure with test data: {e}")
 
-    print("\n🎯 SSID Format Support Summary:")
-    print('✅ Complete SSID format: 42["auth",{...}] - SUPPORTED')
-    print("✅ Raw session ID with parameters - SUPPORTED")
-    print("✅ Automatic parsing and formatting - WORKING")
-    print("✅ UID and platform preservation - WORKING")
-    print("✅ Fast history support - WORKING")
+    print("\nSSID Format Support Summary:")
+    print(' Complete SSID format: 42["auth",{...}] - SUPPORTED')
+    print(" Raw session ID with parameters - SUPPORTED")
+    print(" Automatic parsing and formatting - WORKING")
+    print(" UID and platform preservation - WORKING")
+    print(" Fast history support - WORKING")
 
     # Show example usage
-    print("\n📖 Usage Examples:")
+    print("\nUsage Examples:")
     print("\n# Method 1: Complete SSID (recommended)")
     print("client = AsyncPocketOptionClient(")
     print(
@@ -119,7 +118,7 @@ async def test_ssid_formats():
 async def test_real_connection_simulation():
     """Simulate what a real connection would look like"""
 
-    print("\n\n🔗 Real Connection Simulation")
+    print("\n\nReal Connection Simulation")
     print("=" * 40)
 
     # Example with real-looking SSID format

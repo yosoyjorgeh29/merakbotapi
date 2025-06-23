@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Advanced Testing Suite for PocketOption Async API
 Tests edge cases, performance, and advanced scenarios
@@ -27,7 +26,7 @@ class AdvancedTestSuite:
 
     async def run_all_tests(self) -> Dict[str, Any]:
         """Run comprehensive test suite"""
-        logger.info("🧪 Starting Advanced Testing Suite")
+        logger.info("Testing: Starting Advanced Testing Suite")
 
         tests = [
             ("Connection Stress Test", self.test_connection_stress),
@@ -43,7 +42,7 @@ class AdvancedTestSuite:
         ]
 
         for test_name, test_func in tests:
-            logger.info(f"🔍 Running: {test_name}")
+            logger.info(f"Analysis: Running: {test_name}")
             try:
                 start_time = time.time()
                 result = await test_func()
@@ -55,7 +54,9 @@ class AdvancedTestSuite:
                     "duration": end_time - start_time,
                 }
 
-                logger.success(f"✅ {test_name}: {'PASSED' if result else 'FAILED'}")
+                logger.success(
+                    f"Success: {test_name}: {'PASSED' if result else 'FAILED'}"
+                )
 
             except Exception as e:
                 self.test_results[test_name] = {
@@ -63,13 +64,13 @@ class AdvancedTestSuite:
                     "error": str(e),
                     "duration": 0,
                 }
-                logger.error(f"❌ {test_name}: ERROR - {e}")
+                logger.error(f"Error: {test_name}: ERROR - {e}")
 
         return self._generate_test_report()
 
     async def test_connection_stress(self) -> bool:
         """Test connection under stress conditions"""
-        logger.info("🔥 Testing connection stress resistance...")
+        logger.info("Stress: Testing connection stress resistance...")
 
         try:
             client = AsyncPocketOptionClient(self.ssid, persistent_connection=True)
@@ -104,7 +105,7 @@ class AdvancedTestSuite:
 
     async def test_concurrent_operations(self) -> bool:
         """Test concurrent API operations"""
-        logger.info("⚡ Testing concurrent operations...")
+        logger.info("Performance: Testing concurrent operations...")
 
         try:
             client = AsyncPocketOptionClient(self.ssid, persistent_connection=True)
@@ -143,7 +144,7 @@ class AdvancedTestSuite:
 
     async def test_data_consistency(self) -> bool:
         """Test data consistency across multiple requests"""
-        logger.info("📊 Testing data consistency...")
+        logger.info("Statistics: Testing data consistency...")
 
         try:
             client = AsyncPocketOptionClient(self.ssid)
@@ -186,7 +187,7 @@ class AdvancedTestSuite:
 
     async def test_error_handling(self) -> bool:
         """Test error handling capabilities"""
-        logger.info("🛡️ Testing error handling...")
+        logger.info("Error Handling: Testing error handling...")
 
         try:
             client = AsyncPocketOptionClient(self.ssid)
@@ -197,14 +198,14 @@ class AdvancedTestSuite:
                 await client.get_candles("INVALID_ASSET", TimeFrame.M1, 10)
                 logger.warning("Expected error for invalid asset didn't occur")
             except Exception:
-                logger.info("✅ Invalid asset error handled correctly")
+                logger.info("Success: Invalid asset error handled correctly")
 
             # Test invalid order
             try:
                 await client.place_order("EURUSD", -100, OrderDirection.CALL, 60)
                 logger.warning("Expected error for negative amount didn't occur")
             except Exception:
-                logger.info("✅ Invalid order error handled correctly")
+                logger.info("Success: Invalid order error handled correctly")
 
             # Test connection after disconnect
             await client.disconnect()
@@ -212,7 +213,7 @@ class AdvancedTestSuite:
                 await client.get_balance()
                 logger.warning("Expected error for disconnected client didn't occur")
             except Exception:
-                logger.info("✅ Disconnected client error handled correctly")
+                logger.info("Success: Disconnected client error handled correctly")
 
             return True
 
@@ -222,7 +223,7 @@ class AdvancedTestSuite:
 
     async def test_performance_benchmarks(self) -> bool:
         """Test performance benchmarks"""
-        logger.info("🚀 Running performance benchmarks...")
+        logger.info("Starting: Running performance benchmarks...")
 
         try:
             client = AsyncPocketOptionClient(self.ssid, persistent_connection=True)
@@ -257,7 +258,7 @@ class AdvancedTestSuite:
                 "avg_message_time": message_time,
             }
 
-            logger.info("📈 Performance Metrics:")
+            logger.info("Data: Performance Metrics:")
             logger.info(f"  Connection Time: {connection_time:.3f}s")
             logger.info(f"  Avg Balance Time: {balance_time:.3f}s")
             logger.info(f"  Candles Retrieval: {candles_time:.3f}s")
@@ -279,7 +280,7 @@ class AdvancedTestSuite:
 
     async def test_memory_usage(self) -> bool:
         """Test memory usage patterns"""
-        logger.info("🧠 Testing memory usage...")
+        logger.info("Memory: Testing memory usage...")
 
         try:
             import psutil
@@ -323,7 +324,7 @@ class AdvancedTestSuite:
 
     async def test_network_resilience(self) -> bool:
         """Test network resilience and reconnection"""
-        logger.info("🌐 Testing network resilience...")
+        logger.info("Network: Testing network resilience...")
 
         try:
             # Use keep-alive manager for this test
@@ -384,7 +385,7 @@ class AdvancedTestSuite:
 
     async def test_long_running_session(self) -> bool:
         """Test long-running session stability"""
-        logger.info("⏰ Testing long-running session...")
+        logger.info("Long-running: Testing long-running session...")
 
         try:
             client = AsyncPocketOptionClient(self.ssid, persistent_connection=True)
@@ -437,7 +438,7 @@ class AdvancedTestSuite:
 
     async def test_multi_asset_operations(self) -> bool:
         """Test operations across multiple assets"""
-        logger.info("📈 Testing multi-asset operations...")
+        logger.info("Retrieved: Testing multi-asset operations...")
 
         try:
             client = AsyncPocketOptionClient(self.ssid)
@@ -476,7 +477,7 @@ class AdvancedTestSuite:
 
     async def test_rapid_trading_simulation(self) -> bool:
         """Simulate rapid trading operations"""
-        logger.info("⚡ Testing rapid trading simulation...")
+        logger.info("Performance: Testing rapid trading simulation...")
 
         try:
             client = AsyncPocketOptionClient(self.ssid)
@@ -569,11 +570,13 @@ async def run_advanced_tests(ssid: str = None):
     if not ssid:
         # Use demo SSID for testing
         ssid = r'42["auth",{"session":"demo_session_for_testing","isDemo":1,"uid":0,"platform":1}]'
-        logger.warning("⚠️ Using demo SSID - some tests may have limited functionality")
+        logger.warning(
+            "Caution: Using demo SSID - some tests may have limited functionality"
+        )
 
     test_suite = AdvancedTestSuite(ssid)
 
-    logger.info("🔬 Starting Advanced PocketOption API Testing Suite")
+    logger.info("Testing: Starting Advanced PocketOption API Testing Suite")
     logger.info("=" * 60)
 
     try:
@@ -581,20 +584,20 @@ async def run_advanced_tests(ssid: str = None):
 
         # Print summary
         logger.info("\n" + "=" * 60)
-        logger.info("📋 TEST SUMMARY")
+        logger.info("Demonstration: TEST SUMMARY")
         logger.info("=" * 60)
 
         summary = report["summary"]
         logger.info(f"Total Tests: {summary['total_tests']}")
-        logger.info(f"Passed: {summary['passed']} ✅")
-        logger.info(f"Failed: {summary['failed']} ❌")
-        logger.info(f"Errors: {summary['errors']} 💥")
+        logger.info(f"Passed: {summary['passed']} Success")
+        logger.info(f"Failed: {summary['failed']} Error")
+        logger.info(f"Errors: {summary['errors']} Failure")
         logger.info(f"Success Rate: {summary['success_rate']:.1%}")
         logger.info(f"Total Duration: {summary['total_duration']:.2f}s")
 
         # Performance metrics
         if report["performance_metrics"]:
-            logger.info("\n📊 PERFORMANCE METRICS")
+            logger.info("\nStatistics: PERFORMANCE METRICS")
             logger.info("-" * 30)
             for metric, value in report["performance_metrics"].items():
                 logger.info(f"{metric}: {value:.3f}s")
@@ -604,12 +607,12 @@ async def run_advanced_tests(ssid: str = None):
         with open(report_file, "w") as f:
             json.dump(report, f, indent=2, default=str)
 
-        logger.info(f"\n📄 Detailed report saved to: {report_file}")
+        logger.info(f"\nReport: Detailed report saved to: {report_file}")
 
         return report
 
     except Exception as e:
-        logger.error(f"❌ Test suite failed: {e}")
+        logger.error(f"Error: Test suite failed: {e}")
         raise
 
 

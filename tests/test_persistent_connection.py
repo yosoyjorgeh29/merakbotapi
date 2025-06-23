@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Test script for persistent connection with keep-alive functionality
 Demonstrates the enhanced connection management based on old API patterns
@@ -14,15 +13,15 @@ from pocketoptionapi_async import AsyncPocketOptionClient
 async def test_persistent_connection():
     """Test persistent connection with automatic keep-alive"""
 
-    print("🧪 Testing Persistent Connection with Keep-Alive")
+    print("Testing Persistent Connection with Keep-Alive")
     print("=" * 60)
     print("This test demonstrates the enhanced connection management")
     print("based on the old API's proven keep-alive patterns:")
-    print("✅ Automatic ping every 20 seconds")
-    print("✅ Automatic reconnection on disconnection")
-    print("✅ Multiple region fallback")
-    print("✅ Background task management")
-    print("✅ Connection health monitoring")
+    print(" Automatic ping every 20 seconds")
+    print(" Automatic reconnection on disconnection")
+    print(" Multiple region fallback")
+    print(" Background task management")
+    print(" Connection health monitoring")
     print("=" * 60)
     print()
 
@@ -34,7 +33,7 @@ async def test_persistent_connection():
 
     if "n1p5ah5u8t9438rbunpgrq0hlq" in complete_ssid:
         print(
-            "ℹ️  Using test SSID - connection will fail but demonstrates the keep-alive logic"
+            " Using test SSID - connection will fail but demonstrates the keep-alive logic"
         )
         print(
             "   For real testing, set: export POCKET_OPTION_SSID='your_complete_ssid'"
@@ -57,7 +56,7 @@ async def test_persistent_connection():
         success = await client_regular.connect()
 
         if success:
-            print("✅ Regular connection established")
+            print(" Regular connection established")
 
             # Monitor for 30 seconds
             print("📊 Monitoring regular connection for 30 seconds...")
@@ -67,23 +66,23 @@ async def test_persistent_connection():
                 if i % 10 == 0:
                     stats = client_regular.get_connection_stats()
                     print(
-                        f"   📈 Stats: Connected={client_regular.is_connected}, "
+                        f"   Stats: Connected={client_regular.is_connected}, "
                         f"Pings sent={stats.get('messages_sent', 0)}, "
                         f"Reconnects={stats.get('total_reconnects', 0)}"
                     )
         else:
-            print("ℹ️  Regular connection failed (expected with test SSID)")
+            print(" Regular connection failed (expected with test SSID)")
 
         await client_regular.disconnect()
-        print("✅ Regular connection test completed")
+        print(" Regular connection test completed")
 
     except Exception as e:
-        print(f"ℹ️  Regular connection error (expected): {str(e)[:100]}...")
+        print(f" Regular connection error (expected): {str(e)[:100]}...")
 
     print()
 
     # Test 2: Persistent connection (new enhanced behavior)
-    print("🚀 Test 2: Persistent Connection (enhanced keep-alive)")
+    print("Test 2: Persistent Connection (enhanced keep-alive)")
     print("-" * 50)
 
     try:
@@ -103,11 +102,11 @@ async def test_persistent_connection():
 
         def on_reconnected(data):
             connection_events.append(f"Reconnected: {data}")
-            print(f"🔄 Event: Reconnected after {data}")
+            print(f"Event: Reconnected after {data}")
 
         def on_authenticated(data):
             connection_events.append(f"Authenticated: {data}")
-            print("✅ Event: Authenticated")
+            print(" Event: Authenticated")
 
         client_persistent.add_event_callback("connected", on_connected)
         client_persistent.add_event_callback("reconnected", on_reconnected)
@@ -117,7 +116,7 @@ async def test_persistent_connection():
         success = await client_persistent.connect()
 
         if success:
-            print("✅ Persistent connection established with keep-alive active")
+            print(" Persistent connection established with keep-alive active")
 
             # Monitor for 60 seconds to see keep-alive in action
             print("📊 Monitoring persistent connection for 60 seconds...")
@@ -130,7 +129,7 @@ async def test_persistent_connection():
                 if i % 15 == 0 and i > 0:
                     stats = client_persistent.get_connection_stats()
                     print(
-                        f"   📈 Stats: Connected={client_persistent.is_connected}, "
+                        f"   Stats: Connected={client_persistent.is_connected}, "
                         f"Pings={stats.get('last_ping_time')}, "
                         f"Messages sent={stats.get('messages_sent', 0)}, "
                         f"Messages received={stats.get('messages_received', 0)}, "
@@ -162,13 +161,13 @@ async def test_persistent_connection():
                 print(f"   • {event}")
 
         else:
-            print("ℹ️  Persistent connection failed (expected with test SSID)")
+            print(" Persistent connection failed (expected with test SSID)")
 
         await client_persistent.disconnect()
-        print("✅ Persistent connection test completed")
+        print(" Persistent connection test completed")
 
     except Exception as e:
-        print(f"ℹ️  Persistent connection error (expected): {str(e)[:100]}...")
+        print(f" Persistent connection error (expected): {str(e)[:100]}...")
 
     print()
 
@@ -194,7 +193,7 @@ async def test_persistent_connection():
             success = await resilience_client.connect()
 
             if success:
-                print("✅ Resilient connection established")
+                print(" Resilient connection established")
 
                 # Monitor for 2 minutes
                 print("📊 Monitoring resilient connection for 2 minutes...")
@@ -204,37 +203,37 @@ async def test_persistent_connection():
                     if i % 30 == 0:
                         stats = resilience_client.get_connection_stats()
                         print(
-                            f"   📈 Stats: Connected={resilience_client.is_connected}, "
+                            f"   Stats: Connected={resilience_client.is_connected}, "
                             f"Uptime={stats.get('uptime', 'N/A')}"
                         )
 
                         # Try to get balance to test API functionality
                         try:
                             balance = await resilience_client.get_balance()
-                            print(f"   💰 Balance: ${balance.balance:.2f}")
+                            print(f"   Balance: ${balance.balance:.2f}")
                         except Exception as e:
-                            print(f"   ⚠️  Balance check failed: {e}")
+                            print(f"    Balance check failed: {e}")
 
                 await resilience_client.disconnect()
-                print("✅ Resilience test completed")
+                print(" Resilience test completed")
             else:
-                print("❌ Resilient connection failed")
+                print("Resilient connection failed")
 
         except Exception as e:
-            print(f"❌ Resilience test error: {e}")
+            print(f"Resilience test error: {e}")
     else:
-        print("ℹ️  Skipping resilience test (requires real SSID)")
+        print(" Skipping resilience test (requires real SSID)")
 
     print()
     print("🎉 All persistent connection tests completed!")
     print()
     print("📋 Summary of Enhanced Features:")
-    print("✅ Persistent connections with automatic keep-alive")
-    print("✅ Automatic reconnection with multiple region fallback")
-    print("✅ Background ping/pong handling (20-second intervals)")
-    print("✅ Connection health monitoring and statistics")
-    print("✅ Event-driven connection management")
-    print("✅ Graceful connection cleanup and resource management")
+    print(" Persistent connections with automatic keep-alive")
+    print(" Automatic reconnection with multiple region fallback")
+    print(" Background ping/pong handling (20-second intervals)")
+    print(" Connection health monitoring and statistics")
+    print(" Event-driven connection management")
+    print(" Graceful connection cleanup and resource management")
     print()
     print("💡 Usage Tips:")
     print("• Use persistent_connection=True for long-running applications")
@@ -272,7 +271,7 @@ async def test_comparison_with_old_api():
 
 
 if __name__ == "__main__":
-    logger.info("🚀 Testing Enhanced Persistent Connection Functionality")
+    logger.info("Testing Enhanced Persistent Connection Functionality")
 
     # Run tests
     asyncio.run(test_persistent_connection())

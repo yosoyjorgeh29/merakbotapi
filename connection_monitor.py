@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Advanced Connection Monitor and Diagnostics Tool
 Real-time monitoring, diagnostics, and performance analysis
@@ -78,7 +77,7 @@ class ConnectionMonitor:
 
     async def start_monitoring(self, persistent_connection: bool = True) -> bool:
         """Start real-time monitoring"""
-        logger.info("🔍 Starting connection monitoring...")
+        logger.info("Analysis: Starting connection monitoring...")
 
         try:
             # Initialize client
@@ -110,23 +109,23 @@ class ConnectionMonitor:
                 self.monitor_task = asyncio.create_task(self._monitoring_loop())
 
                 logger.success(
-                    f"✅ Monitoring started (connection time: {connection_time:.3f}s)"
+                    f"Success: Monitoring started (connection time: {connection_time:.3f}s)"
                 )
                 return True
             else:
                 self._record_connection_metrics(0, "FAILED")
-                logger.error("❌ Failed to connect for monitoring")
+                logger.error("Error: Failed to connect for monitoring")
                 return False
 
         except Exception as e:
             self.total_errors += 1
             self._record_error("monitoring_start", str(e))
-            logger.error(f"❌ Failed to start monitoring: {e}")
+            logger.error(f"Error: Failed to start monitoring: {e}")
             return False
 
     async def stop_monitoring(self):
         """Stop monitoring"""
-        logger.info("🛑 Stopping connection monitoring...")
+        logger.info("Stopping connection monitoring...")
 
         self.is_monitoring = False
 
@@ -140,7 +139,7 @@ class ConnectionMonitor:
         if self.client:
             await self.client.disconnect()
 
-        logger.info("✅ Monitoring stopped")
+        logger.info("Success: Monitoring stopped")
 
     def _setup_event_handlers(self):
         """Setup event handlers for monitoring"""
@@ -160,7 +159,7 @@ class ConnectionMonitor:
 
     async def _monitoring_loop(self):
         """Main monitoring loop"""
-        logger.info("🔄 Starting monitoring loop...")
+        logger.info("Persistent: Starting monitoring loop...")
 
         while self.is_monitoring:
             try:
@@ -181,7 +180,7 @@ class ConnectionMonitor:
             except Exception as e:
                 self.total_errors += 1
                 self._record_error("monitoring_loop", str(e))
-                logger.error(f"❌ Monitoring loop error: {e}")
+                logger.error(f"Error: Monitoring loop error: {e}")
 
     async def _collect_performance_snapshot(self):
         """Collect performance metrics snapshot"""
@@ -225,7 +224,7 @@ class ConnectionMonitor:
             self.performance_snapshots.append(snapshot)
 
         except Exception as e:
-            logger.error(f"❌ Error collecting performance snapshot: {e}")
+            logger.error(f"Error: Error collecting performance snapshot: {e}")
 
     async def _check_connection_health(self):
         """Check connection health status"""
@@ -289,7 +288,7 @@ class ConnectionMonitor:
             await self._check_and_emit_alerts(stats)
 
         except Exception as e:
-            logger.error(f"❌ Error emitting monitoring events: {e}")
+            logger.error(f"Error: Error emitting monitoring events: {e}")
 
     async def _check_and_emit_alerts(self, stats: Dict[str, Any]):
         """Check for alert conditions and emit alerts"""
@@ -373,29 +372,29 @@ class ConnectionMonitor:
                     else:
                         handler(data)
                 except Exception as e:
-                    logger.error(f"❌ Error in event handler for {event_type}: {e}")
+                    logger.error(f"Error: Error in event handler for {event_type}: {e}")
 
     # Event handler methods
     async def _on_connected(self, data):
         self.total_messages += 1
         self.message_stats["connected"] += 1
-        logger.info("🔗 Connection established")
+        logger.info("Connection established")
 
     async def _on_disconnected(self, data):
         self.total_messages += 1
         self.message_stats["disconnected"] += 1
-        logger.warning("🔌 Connection lost")
+        logger.warning("Connection lost")
 
     async def _on_reconnected(self, data):
         self.total_messages += 1
         self.message_stats["reconnected"] += 1
-        logger.info("🔄 Connection restored")
+        logger.info("Connection restored")
 
     async def _on_auth_error(self, data):
         self.total_errors += 1
         self.message_stats["auth_error"] += 1
         self._record_error("auth_error", str(data))
-        logger.error("🔐 Authentication error")
+        logger.error("Authentication error")
 
     async def _on_balance_updated(self, data):
         self.total_messages += 1
@@ -619,7 +618,7 @@ class ConnectionMonitor:
             if metrics_data:
                 df = pd.DataFrame(metrics_data)
                 df.to_csv(filename, index=False)
-                logger.info(f"📊 Metrics exported to {filename}")
+                logger.info(f"Statistics: Metrics exported to {filename}")
             else:
                 logger.warning("No metrics data to export")
 
@@ -673,20 +672,20 @@ class RealTimeDisplay:
                 print("\033[2J\033[H", end="")
 
                 # Display header
-                print("🔍 PocketOption API Connection Monitor")
+                print("Analysis: PocketOption API Connection Monitor")
                 print("=" * 60)
 
                 # Get stats
                 stats = self.monitor.get_real_time_stats()
 
                 # Display connection status
-                status = "🟢 CONNECTED" if stats["is_connected"] else "🔴 DISCONNECTED"
+                status = "Connected" if stats["is_connected"] else "Disconnected"
                 print(f"Status: {status}")
                 print(f"Uptime: {stats['uptime_str']}")
                 print()
 
                 # Display metrics
-                print("📊 Metrics:")
+                print("Statistics: Metrics:")
                 print(f"  Messages: {stats['total_messages']}")
                 print(f"  Errors: {stats['total_errors']}")
                 print(f"  Error Rate: {stats['error_rate']:.1%}")
@@ -695,7 +694,7 @@ class RealTimeDisplay:
 
                 # Display performance
                 if "avg_response_time" in stats:
-                    print("⚡ Performance:")
+                    print("Performance:")
                     print(f"  Avg Response: {stats['avg_response_time']:.3f}s")
                     print(f"  Min Response: {stats['min_response_time']:.3f}s")
                     print(f"  Max Response: {stats['max_response_time']:.3f}s")
@@ -703,14 +702,14 @@ class RealTimeDisplay:
 
                 # Display memory if available
                 if "memory_usage_mb" in stats:
-                    print("💾 Resources:")
+                    print("Resources:")
                     print(f"  Memory: {stats['memory_usage_mb']:.1f} MB")
                     print(f"  CPU: {stats['cpu_percent']:.1f}%")
                     print()
 
                 # Display message types
                 if stats["message_types"]:
-                    print("📨 Message Types:")
+                    print("Message: Message Types:")
                     for msg_type, count in stats["message_types"].items():
                         print(f"  {msg_type}: {count}")
                     print()
@@ -729,16 +728,16 @@ async def run_monitoring_demo(ssid: str = None):
 
     if not ssid:
         ssid = r'42["auth",{"session":"demo_session_for_monitoring","isDemo":1,"uid":0,"platform":1}]'
-        logger.warning("⚠️ Using demo SSID for monitoring")
+        logger.warning("Caution: Using demo SSID for monitoring")
 
-    logger.info("🔍 Starting Advanced Connection Monitor Demo")
+    logger.info("Analysis: Starting Advanced Connection Monitor Demo")
 
     # Create monitor
     monitor = ConnectionMonitor(ssid, is_demo=True)
 
     # Add event handlers for alerts
     async def on_alert(alert_data):
-        logger.warning(f"🚨 ALERT: {alert_data['message']}")
+        logger.warning(f"Alert: ALERT: {alert_data['message']}")
 
     async def on_stats_update(stats):
         # Could send to external monitoring system
@@ -762,10 +761,10 @@ async def run_monitoring_demo(ssid: str = None):
             await asyncio.sleep(120)  # Run for 2 minutes
 
         else:
-            logger.error("❌ Failed to start monitoring")
+            logger.error("Error: Failed to start monitoring")
 
     except KeyboardInterrupt:
-        logger.info("🛑 Monitoring stopped by user")
+        logger.info("Stopping: Monitoring stopped by user")
 
     finally:
         # Stop display and monitoring
@@ -775,7 +774,7 @@ async def run_monitoring_demo(ssid: str = None):
         # Generate final report
         report = monitor.generate_diagnostics_report()
 
-        logger.info("\n🏁 FINAL DIAGNOSTICS REPORT")
+        logger.info("\nCompleted: FINAL DIAGNOSTICS REPORT")
         logger.info("=" * 50)
         logger.info(
             f"Health Score: {report['health_score']}/100 ({report['health_status']})"
@@ -797,11 +796,11 @@ async def run_monitoring_demo(ssid: str = None):
         with open(report_file, "w") as f:
             json.dump(report, f, indent=2, default=str)
 
-        logger.info(f"📄 Detailed report saved to: {report_file}")
+        logger.info(f"Report: Detailed report saved to: {report_file}")
 
         # Export metrics
         metrics_file = monitor.export_metrics_csv()
-        logger.info(f"📊 Metrics exported to: {metrics_file}")
+        logger.info(f"Statistics: Metrics exported to: {metrics_file}")
 
 
 if __name__ == "__main__":
