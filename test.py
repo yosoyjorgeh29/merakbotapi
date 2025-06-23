@@ -1,9 +1,10 @@
 import dotenv
 from pocketoptionapi_async import AsyncPocketOptionClient
-
+import os
 dotenv.load_dotenv()
 
-ssid = r'42["auth",{"session":"t04ppgptp3404h0lajp4bo7smh","isDemo":1,"uid":101884312,"platform":2,"isFastHistory":true}]'  # os.getenv("SSID")
+#ssid = r'42["auth",{"session":"t04ppgptp3404h0lajp4bo7smh","isDemo":1,"uid":101884312,"platform":2,"isFastHistory":true}]'  
+ssid = os.getenv("SSID")
 print(ssid)
 api = AsyncPocketOptionClient(ssid=ssid, is_demo=True)
 
