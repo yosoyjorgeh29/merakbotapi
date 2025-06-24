@@ -11,10 +11,9 @@ async def websocket_client(url, pro):
         print(f"Trying {i}...")
         try:
             async with websockets.connect(
-                i,  # teoria de los issues
+                i,
                 extra_headers={
-                    # "Origin": "https://pocket-link19.co",
-                    "Origin": "https://po.trade/"
+                    "Origin": "https://pocketoption.com/" # main URL
                 },
             ) as websocket:
                 async for message in websocket:
@@ -42,17 +41,17 @@ async def pro(message, websocket, url):
     # await websocket.send(data)
 
     if message.startswith('0{"sid":"'):
-        print(f"{url.split('/')[2]} got 0 sid send 40 ")
+        print(f"{url.split('/')[2]} got 0 sid, sending 40 ")
         await websocket.send("40")
     elif message == "2":
         # ping-pong thing
-        print(f"{url.split('/')[2]} got 2 send 3")
+        print(f"{url.split('/')[2]} got 2, sending 3")
         await websocket.send("3")
 
     if message.startswith('40{"sid":"'):
-        print(f"{url.split('/')[2]} got 40 sid send session")
+        print(f"{url.split('/')[2]} got 40 sid, sending session")
         await websocket.send(SESSION)
-        print("message sent! We are logged in!!!")
+        print("Message sent! Logged in successfully.")
 
 
 async def main():

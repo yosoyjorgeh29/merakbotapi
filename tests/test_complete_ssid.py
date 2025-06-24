@@ -86,7 +86,7 @@ async def test_complete_ssid_format():
 async def test_real_connection():
     """Test with real SSID if available"""
 
-    print("\n🌐 Testing Real Connection (Optional)")
+    print("\nTesting Real Connection (Optional)")
     print("=" * 40)
 
     # Check for real SSID in environment

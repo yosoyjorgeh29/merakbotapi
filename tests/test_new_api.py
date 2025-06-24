@@ -162,7 +162,7 @@ def test_api_structure():
 async def test_context_manager():
     """Test async context manager functionality"""
 
-    print("\n🔧 Testing context manager...")
+    print("\nTesting context manager...")
 
     session_id = "n1p5ah5u8t9438rbunpgrq0hlq"
 
