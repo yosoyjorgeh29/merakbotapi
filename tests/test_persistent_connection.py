@@ -41,7 +41,7 @@ async def test_persistent_connection():
         print()
 
     # Test 1: Regular connection (existing behavior)
-    print("🔧 Test 1: Regular Connection (with basic keep-alive)")
+    print("Test 1: Regular Connection (with basic keep-alive)")
     print("-" * 50)
 
     try:
@@ -172,7 +172,7 @@ async def test_persistent_connection():
     print()
 
     # Test 3: Connection resilience simulation
-    print("🔧 Test 3: Connection Resilience Simulation")
+    print("Test 3: Connection Resilience Simulation")
     print("-" * 50)
     print("This would test automatic reconnection when connection drops")
     print("(Requires real SSID for full testing)")

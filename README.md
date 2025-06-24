@@ -53,7 +53,7 @@ pip install -r requirements.txt
 pip install -r requirements-dev.txt
 ```
 
-## 🔧 Quick Start
+## Quick Start
 
 ### Getting Your SSID
 
@@ -71,4 +71,4 @@ Example SSID format:
 42["auth",{"session":"abcd1234efgh5678","isDemo":1,"uid":12345,"platform":1}]
 ```
 
-If you are unable to find it, try running the automatic SSID scraper under the `SSID` folder.
+If you are unable to find it, try running the automatic SSID scraper under the `tools` folder.

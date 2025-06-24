@@ -1,286 +1,554 @@
 """
-Connection Keep-Alive Manager for PocketOption API
+Enhanced Keep-Alive Connection Manager for PocketOption Async API
 """
 
 import asyncio
-import time
-from collections import defaultdict
-from typing import Dict, List, Callable, Optional
+from typing import Optional, List, Callable, Dict, Any
+from datetime import datetime, timedelta
 from loguru import logger
+import websockets
+from websockets.exceptions import ConnectionClosed
+
+from models import ConnectionInfo, ConnectionStatus
+from constants import REGIONS
 
 
 class ConnectionKeepAlive:
     """
-    Handles persistent connection with automatic keep-alive and reconnection
+    Advanced connection keep-alive manager based on old API patterns
     """
 
     def __init__(self, ssid: str, is_demo: bool = True):
-        """
-        Initialize connection keep-alive manager
-
-        Args:
-            ssid: Session ID for authentication
-            is_demo: Whether this is a demo account (default: True)
-        """
         self.ssid = ssid
         self.is_demo = is_demo
+
+        # Connection state
+        self.websocket: Optional[websockets.WebSocketServerProtocol] = None
+        self.connection_info: Optional[ConnectionInfo] = None
         self.is_connected = False
-        self._websocket = None  # Will store reference to websocket client
-        self._event_handlers: Dict[str, List[Callable]] = defaultdict(list)
-        self._ping_task = None
-        self._reconnect_task = None
-        self._connection_stats = {
+        self.should_reconnect = True
+
+        # Background tasks
+        self._ping_task: Optional[asyncio.Task] = None
+        self._reconnect_task: Optional[asyncio.Task] = None
+        self._message_task: Optional[asyncio.Task] = None
+        self._health_task: Optional[asyncio.Task] = None
+
+        # Keep-alive settings
+        self.ping_interval = 20  # seconds (same as old API)
+        self.reconnect_delay = 5  # seconds
+        self.max_reconnect_attempts = 10
+        self.current_reconnect_attempts = 0
+
+        # Event handlers
+        self._event_handlers: Dict[str, List[Callable]] = {}
+
+        # Connection pool with multiple regions
+        self.available_urls = (
+            REGIONS.get_demo_regions() if is_demo else REGIONS.get_all()
+        )
+        self.current_url_index = 0
+
+        # Statistics
+        self.connection_stats = {
+            "total_connections": 0,
+            "successful_connections": 0,
+            "total_reconnects": 0,
             "last_ping_time": None,
-            "total_reconnections": 0,
-            "messages_sent": 0,
-            "messages_received": 0,
+            "last_pong_time": None,
+            "total_messages_sent": 0,
+            "total_messages_received": 0,
         }
 
-        # Importing inside the class to avoid circular imports
-        try:
-            from .websocket_client import AsyncWebSocketClient
+        logger.info(
+            f"Initialized keep-alive manager with {len(self.available_urls)} available regions"
+        )
 
-            self._websocket_client_class = AsyncWebSocketClient
-        except ImportError:
-            logger.error("Failed to import AsyncWebSocketClient")
-            raise ImportError("AsyncWebSocketClient module not available")
-
-    def add_event_handler(self, event: str, handler: Callable):
-        """Add event handler function"""
-        self._event_handlers[event].append(handler)
-
-    async def _trigger_event_async(self, event: str, *args, **kwargs):
-        """Trigger event handlers asynchronously"""
-        for handler in self._event_handlers.get(event, []):
-            try:
-                if asyncio.iscoroutinefunction(handler):
-                    # Call async handlers directly
-                    await handler(*args, **kwargs)
-                else:
-                    # Call sync handlers directly
-                    handler(*args, **kwargs)
-            except Exception as e:
-                logger.error(f"Error in {event} handler: {e}")
-
-    def _trigger_event(self, event: str, *args, **kwargs):
-        """Trigger event handlers"""
-        for handler in self._event_handlers.get(event, []):
-            try:
-                if asyncio.iscoroutinefunction(handler):
-                    # Create task for async handlers
-                    asyncio.create_task(
-                        self._handle_async_callback(handler, args, kwargs)
-                    )
-                else:
-                    # Call sync handlers directly
-                    handler(*args, **kwargs)
-            except Exception as e:
-                logger.error(f"Error in {event} handler: {e}")
-
-    async def _handle_async_callback(self, callback, args, kwargs):
-        """Helper to handle async callbacks in tasks"""
-        try:
-            await callback(*args, **kwargs)
-        except Exception as e:
-            logger.error(f"Error in async callback: {e}")
-
-    # Event forwarding methods
-    async def _forward_balance_data(self, data):
-        """Forward balance_data event from WebSocket to keep-alive handlers"""
-        await self._trigger_event_async("balance_data", data)
-
-    async def _forward_balance_updated(self, data):
-        """Forward balance_updated event from WebSocket to keep-alive handlers"""
-        await self._trigger_event_async("balance_updated", data)
-
-    async def _forward_authenticated(self, data):
-        """Forward authenticated event from WebSocket to keep-alive handlers"""
-        await self._trigger_event_async("authenticated", data)
-
-    async def _forward_order_opened(self, data):
-        """Forward order_opened event from WebSocket to keep-alive handlers"""
-        await self._trigger_event_async("order_opened", data)
-
-    async def _forward_order_closed(self, data):
-        """Forward order_closed event from WebSocket to keep-alive handlers"""
-        await self._trigger_event_async("order_closed", data)
-
-    async def _forward_stream_update(self, data):
-        """Forward stream_update event from WebSocket to keep-alive handlers"""
-        await self._trigger_event_async("stream_update", data)
-
-    async def _forward_json_data(self, data):
-        """Forward json_data event from WebSocket to keep-alive handlers"""
-        await self._trigger_event_async("json_data", data)
-
-    async def connect_with_keep_alive(
-        self, regions: Optional[List[str]] = None
-    ) -> bool:
+    async def start_persistent_connection(self) -> bool:
         """
-        Connect with automatic keep-alive and reconnection
-
-        Args:
-            regions: List of region names to try (optional)
-
-        Returns:
-            bool: Success status
+        Start a persistent connection with automatic keep-alive
+        Similar to old API's daemon thread approach but with modern async
         """
-        # Create websocket client if needed
-        if not self._websocket:
-            self._websocket = self._websocket_client_class()
+        logger.info("Starting persistent connection with keep-alive...")
 
-            # Forward WebSocket events to keep-alive events
-            self._websocket.add_event_handler(
-                "balance_data", self._forward_balance_data
-            )
-            self._websocket.add_event_handler(
-                "balance_updated", self._forward_balance_updated
-            )
-            self._websocket.add_event_handler(
-                "authenticated", self._forward_authenticated
-            )
-            self._websocket.add_event_handler(
-                "order_opened", self._forward_order_opened
-            )
-            self._websocket.add_event_handler(
-                "order_closed", self._forward_order_closed
-            )
-            self._websocket.add_event_handler(
-                "stream_update", self._forward_stream_update
-            )
-            self._websocket.add_event_handler("json_data", self._forward_json_data)
-
-        # Format auth message
-        if self.ssid.startswith('42["auth",'):
-            ssid_message = self.ssid
-        else:
-            # Create basic auth message from raw session ID
-            ssid_message = f'42["auth", {{"ssid": "{self.ssid}", "is_demo": {str(self.is_demo).lower()}}}]'
-
-        # Connect to WebSocket
-        from .constants import REGIONS
-
-        if not regions:
-            # Use appropriate regions based on demo mode
-            if self.is_demo:
-                all_regions = REGIONS.get_all_regions()
-                demo_urls = REGIONS.get_demo_regions()
-                regions = []
-                for name, url in all_regions.items():
-                    if url in demo_urls:
-                        regions.append(name)
+        try:
+            # Initial connection
+            if await self._establish_connection():
+                # Start all background tasks
+                await self._start_background_tasks()
+                logger.success(
+                    "Success: Persistent connection established with keep-alive active"
+                )
+                return True
             else:
-                # For live mode, use all regions except demo
-                all_regions = REGIONS.get_all_regions()
-                regions = [
-                    name
-                    for name, url in all_regions.items()
-                    if "DEMO" not in name.upper()
-                ]
+                logger.error("Error: Failed to establish initial connection")
+                return False
 
-        # Try to connect
-        for region_name in regions:
-            region_url = REGIONS.get_region(region_name)
-            if not region_url:
-                continue
+        except Exception as e:
+            logger.error(f"Error: Error starting persistent connection: {e}")
+            return False
+
+    async def stop_persistent_connection(self):
+        """Stop the persistent connection and all background tasks"""
+        logger.info("Stopping persistent connection...")
+
+        self.should_reconnect = False
+
+        # Cancel all background tasks
+        tasks = [
+            self._ping_task,
+            self._reconnect_task,
+            self._message_task,
+            self._health_task,
+        ]
+        for task in tasks:
+            if task and not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+        # Close connection
+        if self.websocket:
+            await self.websocket.close()
+            self.websocket = None
+
+        self.is_connected = False
+        logger.info("Success: Persistent connection stopped")
+
+    async def _establish_connection(self) -> bool:
+        """
+        Establish connection with fallback URLs (like old API)
+        """
+        for attempt in range(len(self.available_urls)):
+            url = self.available_urls[self.current_url_index]
 
             try:
-                urls = [region_url]
-                logger.info(f"Trying to connect to {region_name} ({region_url})")
-                success = await self._websocket.connect(urls, ssid_message)
+                logger.info(
+                    f"Connecting: Attempting connection to {url} (attempt {attempt + 1})"
+                )
 
-                if success:
-                    logger.info(f"Connected to {region_name}")
-                    self.is_connected = True
+                # SSL context (like old API)
+                import ssl
 
-                    # Start keep-alive
-                    self._start_keep_alive_tasks()
+                ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                ssl_context.check_hostname = False
+                ssl_context.verify_mode = ssl.CERT_NONE
 
-                    # Notify connection (async-aware)
-                    await self._trigger_event_async("connected")
-                    return True
+                # Connect with headers (like old API)
+                self.websocket = await asyncio.wait_for(
+                    websockets.connect(
+                        url,
+                        ssl=ssl_context,
+                        extra_headers={
+                            "Origin": "https://pocketoption.com",
+                            "Cache-Control": "no-cache",
+                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                        },
+                        ping_interval=None,  # We handle pings manually
+                        ping_timeout=None,
+                        close_timeout=10,
+                    ),
+                    timeout=15.0,
+                )
+
+                # Update connection info
+                region = self._extract_region_from_url(url)
+                self.connection_info = ConnectionInfo(
+                    url=url,
+                    region=region,
+                    status=ConnectionStatus.CONNECTED,
+                    connected_at=datetime.now(),
+                    reconnect_attempts=self.current_reconnect_attempts,
+                )
+
+                self.is_connected = True
+                self.current_reconnect_attempts = 0
+                self.connection_stats["total_connections"] += 1
+                self.connection_stats["successful_connections"] += 1
+
+                # Send initial handshake (like old API)
+                await self._send_handshake()
+
+                logger.success(f"Success: Connected to {region} region successfully")
+                await self._emit_event("connected", {"url": url, "region": region})
+
+                return True
+
             except Exception as e:
-                logger.warning(f"Failed to connect to {region_name}: {e}")
+                logger.warning(f"Caution: Failed to connect to {url}: {e}")
+
+                # Try next URL
+                self.current_url_index = (self.current_url_index + 1) % len(
+                    self.available_urls
+                )
+
+                if self.websocket:
+                    try:
+                        await self.websocket.close()
+                    except Exception:
+                        pass
+                    self.websocket = None
+
+                await asyncio.sleep(1)  # Brief delay before next attempt
 
         return False
 
-    def _start_keep_alive_tasks(self):
-        """Start keep-alive tasks"""
-        logger.info("Starting keep-alive tasks")
+    async def _send_handshake(self):
+        """Send initial handshake sequence (like old API)"""
+        try:
+            # Wait for initial connection message
+            initial_message = await asyncio.wait_for(
+                self.websocket.recv(), timeout=10.0
+            )
+            logger.debug(f"Received initial: {initial_message}")
 
-        # Start ping task
-        if self._ping_task:
-            self._ping_task.cancel()
+            # Send handshake sequence (like old API)
+            await self.websocket.send("40")
+            await asyncio.sleep(0.1)
+
+            # Wait for connection establishment
+            conn_message = await asyncio.wait_for(self.websocket.recv(), timeout=10.0)
+            logger.debug(f"Received connection: {conn_message}")
+
+            # Send SSID authentication
+            await self.websocket.send(self.ssid)
+            logger.debug("Handshake completed")
+
+            self.connection_stats["total_messages_sent"] += 2
+
+        except Exception as e:
+            logger.error(f"Handshake failed: {e}")
+            raise
+
+    async def _start_background_tasks(self):
+        """Start all background tasks (like old API's concurrent tasks)"""
+        logger.info("Persistent: Starting background keep-alive tasks...")
+
+        # Ping task (every 20 seconds like old API)
         self._ping_task = asyncio.create_task(self._ping_loop())
 
-        # Start reconnection monitor
-        if self._reconnect_task:
-            self._reconnect_task.cancel()
+        # Message receiving task
+        self._message_task = asyncio.create_task(self._message_loop())
+
+        # Health monitoring task
+        self._health_task = asyncio.create_task(self._health_monitor_loop())
+
+        # Reconnection monitoring task
         self._reconnect_task = asyncio.create_task(self._reconnection_monitor())
 
+        logger.success("Success: All background tasks started")
+
     async def _ping_loop(self):
-        """Send periodic pings to keep connection alive"""
-        while self.is_connected and self._websocket:
+        """
+        Continuous ping loop (like old API's send_ping function)
+        Sends '42["ps"]' every 20 seconds
+        """
+        logger.info("Ping: Starting ping loop...")
+
+        while self.should_reconnect:
             try:
-                await self._websocket.send_message('42["ps"]')
-                self._connection_stats["last_ping_time"] = time.time()
-                self._connection_stats["messages_sent"] += 1
-                await asyncio.sleep(20)  # Ping every 20 seconds
-            except Exception as e:
-                logger.warning(f"Ping failed: {e}")
+                if self.is_connected and self.websocket:
+                    # Send ping message (exact format from old API)
+                    await self.websocket.send('42["ps"]')
+                    self.connection_stats["last_ping_time"] = datetime.now()
+                    self.connection_stats["total_messages_sent"] += 1
+
+                    logger.debug("Ping: Ping sent")
+
+                await asyncio.sleep(self.ping_interval)
+
+            except ConnectionClosed:
+                logger.warning("Connecting: Connection closed during ping")
                 self.is_connected = False
+                break
+            except Exception as e:
+                logger.error(f"Error: Ping failed: {e}")
+                self.is_connected = False
+                break
+
+    async def _message_loop(self):
+        """
+        Continuous message receiving loop (like old API's websocket_listener)
+        """
+        logger.info("Message: Starting message loop...")
+
+        while self.should_reconnect:
+            try:
+                if self.is_connected and self.websocket:
+                    try:
+                        # Receive message with timeout
+                        message = await asyncio.wait_for(
+                            self.websocket.recv(), timeout=30.0
+                        )
+
+                        self.connection_stats["total_messages_received"] += 1
+                        await self._process_message(message)
+
+                    except asyncio.TimeoutError:
+                        logger.debug("Message: Message receive timeout (normal)")
+                        continue
+                else:
+                    await asyncio.sleep(1)
+
+            except ConnectionClosed:
+                logger.warning("Connecting: Connection closed during message receive")
+                self.is_connected = False
+                break
+            except Exception as e:
+                logger.error(f"Error: Message loop error: {e}")
+                self.is_connected = False
+                break
+
+    async def _health_monitor_loop(self):
+        """Monitor connection health and trigger reconnects if needed"""
+        logger.info("Health: Starting health monitor...")
+
+        while self.should_reconnect:
+            try:
+                await asyncio.sleep(30)  # Check every 30 seconds
+
+                if not self.is_connected:
+                    logger.warning("Health: Health check: Connection lost")
+                    continue
+
+                # Check if we received a pong recently
+                if self.connection_stats["last_ping_time"]:
+                    time_since_ping = (
+                        datetime.now() - self.connection_stats["last_ping_time"]
+                    )
+                    if time_since_ping > timedelta(
+                        seconds=60
+                    ):  # No response for 60 seconds
+                        logger.warning(
+                            "Health: Health check: No ping response, connection may be dead"
+                        )
+                        self.is_connected = False
+
+                # Check WebSocket state
+                if self.websocket and self.websocket.closed:
+                    logger.warning("Health: Health check: WebSocket is closed")
+                    self.is_connected = False
+
+            except Exception as e:
+                logger.error(f"Error: Health monitor error: {e}")
 
     async def _reconnection_monitor(self):
-        """Monitor and reconnect if connection is lost"""
-        while True:
-            await asyncio.sleep(30)  # Check every 30 seconds
+        """
+        Monitor for disconnections and automatically reconnect (like old API)
+        """
+        logger.info("Persistent: Starting reconnection monitor...")
 
-            if (
-                not self.is_connected
-                or not self._websocket
-                or not self._websocket.is_connected
-            ):
-                logger.info("Connection lost, reconnecting...")
-                self.is_connected = False
+        while self.should_reconnect:
+            try:
+                await asyncio.sleep(5)  # Check every 5 seconds
 
-                # Try to reconnect
-                success = await self.connect_with_keep_alive()
+                if not self.is_connected and self.should_reconnect:
+                    logger.warning(
+                        "Persistent: Detected disconnection, attempting reconnect..."
+                    )
 
-                if success:
-                    self._connection_stats["total_reconnections"] += 1
-                    logger.info("Reconnection successful")
-                    await self._trigger_event_async("reconnected")
-                else:
-                    logger.error("Reconnection failed")
-                    await asyncio.sleep(10)  # Wait before next attempt
+                    self.current_reconnect_attempts += 1
+                    self.connection_stats["total_reconnects"] += 1
 
-    async def disconnect(self):
-        """Disconnect and clean up resources"""
-        logger.info("Disconnecting...")
+                    if self.current_reconnect_attempts <= self.max_reconnect_attempts:
+                        logger.info(
+                            f"Persistent: Reconnection attempt {self.current_reconnect_attempts}/{self.max_reconnect_attempts}"
+                        )
 
-        # Cancel tasks
-        if self._ping_task:
-            self._ping_task.cancel()
-        if self._reconnect_task:
-            self._reconnect_task.cancel()
+                        # Clean up current connection
+                        if self.websocket:
+                            try:
+                                await self.websocket.close()
+                            except Exception:
+                                pass
+                            self.websocket = None
 
-        # Disconnect websocket
-        if self._websocket:
-            await self._websocket.disconnect()
+                        # Try to reconnect
+                        success = await self._establish_connection()
 
-        self.is_connected = False
-        logger.info("Disconnected")
-        await self._trigger_event_async("disconnected")
+                        if success:
+                            logger.success("Success: Reconnection successful!")
+                            await self._emit_event(
+                                "reconnected",
+                                {
+                                    "attempt": self.current_reconnect_attempts,
+                                    "url": self.connection_info.url
+                                    if self.connection_info
+                                    else None,
+                                },
+                            )
+                        else:
+                            logger.error(
+                                f"Error: Reconnection attempt {self.current_reconnect_attempts} failed"
+                            )
+                            await asyncio.sleep(self.reconnect_delay)
+                    else:
+                        logger.error(
+                            f"Error: Max reconnection attempts ({self.max_reconnect_attempts}) reached"
+                        )
+                        await self._emit_event(
+                            "max_reconnects_reached",
+                            {"attempts": self.current_reconnect_attempts},
+                        )
+                        break
 
-    async def send_message(self, message):
-        """Send WebSocket message"""
-        if not self.is_connected or not self._websocket:
-            raise ConnectionError("Not connected")
+            except Exception as e:
+                logger.error(f"Error: Reconnection monitor error: {e}")
 
-        await self._websocket.send_message(message)
-        self._connection_stats["messages_sent"] += 1
+    async def _process_message(self, message):
+        """Process incoming messages (like old API's on_message)"""
+        try:
+            # Convert bytes to string if needed
+            if isinstance(message, bytes):
+                message = message.decode("utf-8")
 
-    async def on_message(self, message):
-        """Handle WebSocket message"""
-        self._connection_stats["messages_received"] += 1
-        await self._trigger_event_async("message_received", message)
+            logger.debug(f"Message: Received: {message[:100]}...")
+
+            # Handle ping-pong (like old API)
+            if message == "2":
+                await self.websocket.send("3")
+                self.connection_stats["last_pong_time"] = datetime.now()
+                logger.debug("Ping: Pong sent")
+                return
+
+            # Handle authentication success (like old API)
+            if "successauth" in message:
+                logger.success("Success: Authentication successful")
+                await self._emit_event("authenticated", {})
+                return
+
+            # Handle other message types
+            await self._emit_event("message_received", {"message": message})
+
+        except Exception as e:
+            logger.error(f"Error: Error processing message: {e}")
+
+    async def send_message(self, message: str) -> bool:
+        """Send message with connection check"""
+        try:
+            if self.is_connected and self.websocket:
+                await self.websocket.send(message)
+                self.connection_stats["total_messages_sent"] += 1
+                logger.debug(f"Message: Sent: {message[:50]}...")
+                return True
+            else:
+                logger.warning("Caution: Cannot send message: not connected")
+                return False
+        except Exception as e:
+            logger.error(f"Error: Failed to send message: {e}")
+            self.is_connected = False
+            return False
+
+    def add_event_handler(self, event: str, handler: Callable):
+        """Add event handler"""
+        if event not in self._event_handlers:
+            self._event_handlers[event] = []
+        self._event_handlers[event].append(handler)
+
+    async def _emit_event(self, event: str, data: Any):
+        """Emit event to handlers"""
+        if event in self._event_handlers:
+            for handler in self._event_handlers[event]:
+                try:
+                    if asyncio.iscoroutinefunction(handler):
+                        await handler(data)
+                    else:
+                        handler(data)
+                except Exception as e:
+                    logger.error(f"Error: Error in event handler for {event}: {e}")
+
+    def _extract_region_from_url(self, url: str) -> str:
+        """Extract region name from URL"""
+        try:
+            parts = url.split("//")[1].split(".")[0]
+            if "api-" in parts:
+                return parts.replace("api-", "").upper()
+            elif "demo" in parts:
+                return "DEMO"
+            else:
+                return "UNKNOWN"
+        except Exception:
+            return "UNKNOWN"
+
+    def get_connection_stats(self) -> Dict[str, Any]:
+        """Get detailed connection statistics"""
+        return {
+            **self.connection_stats,
+            "is_connected": self.is_connected,
+            "current_url": self.connection_info.url if self.connection_info else None,
+            "current_region": self.connection_info.region
+            if self.connection_info
+            else None,
+            "reconnect_attempts": self.current_reconnect_attempts,
+            "uptime": (
+                datetime.now() - self.connection_info.connected_at
+                if self.connection_info and self.connection_info.connected_at
+                else timedelta()
+            ),
+            "available_regions": len(self.available_urls),
+        }
+
+
+async def demo_keep_alive():
+    """Demo of the keep-alive connection manager"""
+
+    # Example complete SSID
+    ssid = r'42["auth",{"session":"n1p5ah5u8t9438rbunpgrq0hlq","isDemo":1,"uid":0,"platform":1}]'
+
+    # Create keep-alive manager
+    keep_alive = ConnectionKeepAlive(ssid, is_demo=True)
+
+    # Add event handlers
+    async def on_connected(data):
+        logger.success(f"Successfully: Connected to: {data}")
+
+    async def on_reconnected(data):
+        logger.success(f"Persistent: Reconnected after {data['attempt']} attempts")
+
+    async def on_message(data):
+        logger.info(f"Message: Message: {data['message'][:50]}...")
+
+    keep_alive.add_event_handler("connected", on_connected)
+    keep_alive.add_event_handler("reconnected", on_reconnected)
+    keep_alive.add_event_handler("message_received", on_message)
+
+    try:
+        # Start persistent connection
+        success = await keep_alive.start_persistent_connection()
+
+        if success:
+            logger.info(
+                "Starting: Keep-alive connection started, will maintain connection automatically..."
+            )
+
+            # Let it run for a while to demonstrate keep-alive
+            for i in range(60):  # Run for 1 minute
+                await asyncio.sleep(1)
+
+                # Print stats every 10 seconds
+                if i % 10 == 0:
+                    stats = keep_alive.get_connection_stats()
+                    logger.info(
+                        f"Statistics: Stats: Connected={stats['is_connected']}, "
+                        f"Messages sent={stats['total_messages_sent']}, "
+                        f"Messages received={stats['total_messages_received']}, "
+                        f"Uptime={stats['uptime']}"
+                    )
+
+                # Send a test message every 30 seconds
+                if i % 30 == 0 and i > 0:
+                    await keep_alive.send_message('42["test"]')
+
+        else:
+            logger.error("Error: Failed to start keep-alive connection")
+
+    finally:
+        # Clean shutdown
+        await keep_alive.stop_persistent_connection()
+
+
+if __name__ == "__main__":
+    logger.info("Testing: Testing Enhanced Keep-Alive Connection Manager")
+    asyncio.run(demo_keep_alive())

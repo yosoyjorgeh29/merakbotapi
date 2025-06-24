@@ -12,7 +12,7 @@ async def test_demo_live_connection():
     # Test SSID with demo=1 hardcoded (should be overridden by is_demo parameter)
     demo_ssid = r'42["auth",{"session":"n1p5ah5u8t9438rbunpgrq0hlq","isDemo":1,"uid":72645361,"platform":1,"isFastHistory":true}]'
 
-    print("🌐 Testing Demo/Live Connection Fix")
+    print("Testing Demo/Live Connection Fix")
     print("=" * 50)
 
     # Test 1: Demo mode connection (should connect to demo regions)
@@ -28,7 +28,7 @@ async def test_demo_live_connection():
         if success:
             print("    Connected successfully!")
             if hasattr(client_demo, "connection_info") and client_demo.connection_info:
-                print(f"   🌐 Connected to: {client_demo.connection_info.region}")
+                print(f"   Connected to: {client_demo.connection_info.region}")
             await client_demo.disconnect()
         else:
             print("   Connection failed")
@@ -51,7 +51,7 @@ async def test_demo_live_connection():
         if success:
             print("    Connected successfully!")
             if hasattr(client_live, "connection_info") and client_live.connection_info:
-                print(f"   🌐 Connected to: {client_live.connection_info.region}")
+                print(f"   Connected to: {client_live.connection_info.region}")
             await client_live.disconnect()
         else:
             print("   Connection failed")

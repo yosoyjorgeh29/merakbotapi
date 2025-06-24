@@ -18,7 +18,7 @@ logger.add(
 async def test_connection_fix():
     """Test the fixed connection with proper handshake sequence"""
 
-    print("🔧 Testing Fixed Connection Issue")
+    print("Testing Fixed Connection Issue")
     print("=" * 60)
 
     # Test with complete SSID format (like from browser)
@@ -53,7 +53,7 @@ async def test_connection_fix():
                 print(" CONNECTION SUCCESSFUL!")
                 print(f"📊 Connection info: {client.connection_info}")
                 print(
-                    f"🌐 Connected to: {client.connection_info.region if client.connection_info else 'Unknown'}"
+                    f"Connected to: {client.connection_info.region if client.connection_info else 'Unknown'}"
                 )
 
                 # Test basic functionality
@@ -116,7 +116,7 @@ async def test_old_vs_new_comparison():
     print("   5.  Wait for authentication response")
     print()
 
-    print("🔧 Key Fixes Applied:")
+    print("Key Fixes Applied:")
     print("    Proper message sequence waiting (like old API)")
     print("    Handshake completion before background tasks")
     print("    Authentication event handling")
@@ -143,7 +143,7 @@ async def main():
         print(
             "📝 The new async API now follows the same handshake pattern as the old API"
         )
-        print("🔧 Key improvements:")
+        print("Key improvements:")
         print("   • Proper server response waiting")
         print("   • Sequential handshake messages")
         print("   • Authentication event handling")

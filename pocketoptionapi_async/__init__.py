@@ -62,7 +62,6 @@ __all__ = [
     "ConnectionStatus",
     "ASSETS",
     "REGIONS",
-    # Monitoring and error handling
     "ErrorMonitor",
     "HealthChecker",
     "ErrorSeverity",
