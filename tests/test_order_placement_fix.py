@@ -5,6 +5,7 @@ Test script to verify order placement fix
 import asyncio
 import os
 from loguru import logger
+from pocketoptionapi_async import AsyncPocketOptionClient, OrderDirection
 
 # Configure logger
 logger.remove()
@@ -13,8 +14,6 @@ logger.add(
     format="<green>{time:HH:mm:ss}</green> | <level>{level}</level> | {message}",
     level="INFO",
 )
-
-from pocketoptionapi_async import AsyncPocketOptionClient, OrderDirection
 
 
 async def test_order_placement_fix():

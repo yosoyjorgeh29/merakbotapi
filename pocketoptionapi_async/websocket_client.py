@@ -11,6 +11,7 @@ from datetime import datetime
 from collections import deque
 import websockets
 from websockets.exceptions import ConnectionClosed
+from websockets.legacy.client import WebSocketClientProtocol
 from loguru import logger
 
 from .models import ConnectionInfo, ConnectionStatus, ServerTime
@@ -61,8 +62,7 @@ class ConnectionPool:
     """Connection pool for better resource management"""
 
     def __init__(self, max_connections: int = 3):
-        self.max_connections = max_connections
-        self.active_connections: Dict[str, websockets.WebSocketServerProtocol] = {}
+        self.active_connections: Dict[str, WebSocketClientProtocol] = {}
         self.connection_stats: Dict[str, Dict[str, Any]] = {}
         self._pool_lock = asyncio.Lock()
 
@@ -119,7 +119,7 @@ class AsyncWebSocketClient:
     """
 
     def __init__(self):
-        self.websocket: Optional[websockets.WebSocketServerProtocol] = None
+        self.websocket: Optional[WebSocketClientProtocol] = None
         self.connection_info: Optional[ConnectionInfo] = None
         self.server_time: Optional[ServerTime] = None
         self._ping_task: Optional[asyncio.Task] = None
@@ -166,7 +166,7 @@ class AsyncWebSocketClient:
                 ssl_context.verify_mode = ssl.CERT_NONE
 
                 # Connect with timeout
-                self.websocket = await asyncio.wait_for(
+                ws = await asyncio.wait_for(
                     websockets.connect(
                         url,
                         ssl=ssl_context,
@@ -177,6 +177,7 @@ class AsyncWebSocketClient:
                     ),
                     timeout=10.0,
                 )
+                self.websocket = ws  # type: ignore
                 # Update connection info
                 region = self._extract_region_from_url(url)
                 self.connection_info = ConnectionInfo(
@@ -349,10 +350,18 @@ class AsyncWebSocketClient:
         try:
             # Wait for initial connection message with "0" and "sid" (like old API)
             logger.debug("Waiting for initial handshake message...")
+            if not self.websocket:
+                raise WebSocketError("WebSocket is not connected during handshake")
             initial_message = await asyncio.wait_for(
                 self.websocket.recv(), timeout=10.0
             )
             logger.debug(f"Received initial: {initial_message}")
+
+            # Ensure initial_message is a string
+            if isinstance(initial_message, memoryview):
+                initial_message = bytes(initial_message).decode("utf-8")
+            elif isinstance(initial_message, (bytes, bytearray)):
+                initial_message = initial_message.decode("utf-8")
 
             # Check if it's the expected initial message format
             if initial_message.startswith("0") and "sid" in initial_message:
@@ -366,8 +375,14 @@ class AsyncWebSocketClient:
                 )
                 logger.debug(f"Received connection: {conn_message}")
 
-                # Check if it's the expected connection message format
-                if conn_message.startswith("40") and "sid" in conn_message:
+                # Ensure conn_message is a string
+                if isinstance(conn_message, memoryview):
+                    conn_message_str = bytes(conn_message).decode("utf-8")
+                elif isinstance(conn_message, (bytes, bytearray)):
+                    conn_message_str = conn_message.decode("utf-8")
+                else:
+                    conn_message_str = conn_message
+                if conn_message_str.startswith("40") and "sid" in conn_message_str:
                     # Send SSID authentication (like old API)
                     await self.send_message(ssid)
                     logger.debug("Sent SSID authentication")
@@ -538,7 +553,7 @@ class AsyncWebSocketClient:
 
             if cached_time and time.time() - cached_time < self._cache_ttl:
                 # Use cached processing result
-                cached_result = self._message_cache.get(message_hash)
+                cached_result = self._message_cache.get(str(message_hash))
                 if cached_result:
                     await self._emit_event("cached_message", cached_result)
                     return
@@ -553,7 +568,10 @@ class AsyncWebSocketClient:
                 logger.warning(f"Unknown message type: {message[:20]}...")
 
             # Cache processing result
-            self._message_cache[message_hash] = {"processed": True, "type": "unknown"}
+            self._message_cache[str(message_hash)] = {
+                "processed": True,
+                "type": "unknown",
+            }
             self._message_cache[f"{message_hash}_time"] = time.time()
 
         except Exception as e:
@@ -651,7 +669,7 @@ class AsyncWebSocketClient:
                 return "DEMO"
             else:
                 return "UNKNOWN"
-        except:
+        except Exception:
             return "UNKNOWN"
 
     @property
@@ -660,6 +678,6 @@ class AsyncWebSocketClient:
         return (
             self.websocket is not None
             and not self.websocket.closed
-            and self.connection_info
+            and self.connection_info is not None
             and self.connection_info.status == ConnectionStatus.CONNECTED
         )

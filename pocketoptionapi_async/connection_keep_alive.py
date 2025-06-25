@@ -6,8 +6,8 @@ import asyncio
 from typing import Optional, List, Callable, Dict, Any
 from datetime import datetime, timedelta
 from loguru import logger
-import websockets
 from websockets.exceptions import ConnectionClosed
+from websockets.legacy.client import connect, WebSocketClientProtocol
 
 from models import ConnectionInfo, ConnectionStatus
 from constants import REGIONS
@@ -23,7 +23,7 @@ class ConnectionKeepAlive:
         self.is_demo = is_demo
 
         # Connection state
-        self.websocket: Optional[websockets.WebSocketServerProtocol] = None
+        self.websocket: Optional[WebSocketClientProtocol] = None
         self.connection_info: Optional[ConnectionInfo] = None
         self.is_connected = False
         self.should_reconnect = True
@@ -138,7 +138,7 @@ class ConnectionKeepAlive:
 
                 # Connect with headers (like old API)
                 self.websocket = await asyncio.wait_for(
-                    websockets.connect(
+                    connect(
                         url,
                         ssl=ssl_context,
                         extra_headers={
@@ -198,6 +198,8 @@ class ConnectionKeepAlive:
     async def _send_handshake(self):
         """Send initial handshake sequence (like old API)"""
         try:
+            if not self.websocket:
+                raise RuntimeError("Handshake called with no websocket connection.")
             # Wait for initial connection message
             initial_message = await asyncio.wait_for(
                 self.websocket.recv(), timeout=10.0
@@ -408,9 +410,10 @@ class ConnectionKeepAlive:
 
             # Handle ping-pong (like old API)
             if message == "2":
-                await self.websocket.send("3")
-                self.connection_stats["last_pong_time"] = datetime.now()
-                logger.debug("Ping: Pong sent")
+                if self.websocket:
+                    await self.websocket.send("3")
+                    self.connection_stats["last_pong_time"] = datetime.now()
+                    logger.debug("Ping: Pong sent")
                 return
 
             # Handle authentication success (like old API)
@@ -489,6 +492,25 @@ class ConnectionKeepAlive:
             ),
             "available_regions": len(self.available_urls),
         }
+
+    async def connect_with_keep_alive(
+        self, regions: Optional[List[str]] = None
+    ) -> bool:
+        """Establish a persistent connection with keep-alive, optionally using a list of regions."""
+        # Optionally update available_urls if regions are provided
+        if regions:
+            # Assume regions are URLs or region names; adapt as needed
+            self.available_urls = regions
+            self.current_url_index = 0
+        return await self.start_persistent_connection()
+
+    async def disconnect(self) -> None:
+        """Disconnect and clean up persistent connection."""
+        await self.stop_persistent_connection()
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Return connection statistics (alias for get_connection_stats)."""
+        return self.get_connection_stats()
 
 
 async def demo_keep_alive():

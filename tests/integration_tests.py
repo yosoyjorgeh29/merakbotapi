@@ -12,9 +12,9 @@ from loguru import logger
 
 from pocketoptionapi_async.client import AsyncPocketOptionClient
 from pocketoptionapi_async.models import TimeFrame
-from connection_keep_alive import ConnectionKeepAlive
-from connection_monitor import ConnectionMonitor
-from load_testing_tool import LoadTester, LoadTestConfig
+from pocketoptionapi_async.connection_keep_alive import ConnectionKeepAlive
+from pocketoptionapi_async.connection_monitor import ConnectionMonitor
+from performance.load_testing_tool import LoadTester, LoadTestConfig
 
 
 class IntegrationTester:
