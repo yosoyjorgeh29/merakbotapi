@@ -1,19 +1,21 @@
 import websockets
 import anyio
 from rich.pretty import pprint as print
-from pocketoptionapi.constants import REGION
+from pocketoptionapi_async.constants import REGIONS
 
 SESSION = r'42["auth",{"session":"a:4:{s:10:\"session_id\";s:32:\"a1dc009a7f1f0c8267d940d0a036156f\";s:10:\"ip_address\";s:12:\"190.162.4.33\";s:10:\"user_agent\";s:120:\"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 OP\";s:13:\"last_activity\";i:1709914958;}793884e7bccc89ec798c06ef1279fcf2","isDemo":0,"uid":27658142,"platform":1}]'
 
 
 async def websocket_client(url, pro):
-    for i in REGION.get_regions(REGION):
+    # Use REGIONS.get_all() to get a list of region URLs
+    region_urls = REGIONS.get_all()
+    for i in region_urls:
         print(f"Trying {i}...")
         try:
             async with websockets.connect(
                 i,
                 extra_headers={
-                    "Origin": "https://pocketoption.com/" # main URL
+                    "Origin": "https://pocketoption.com/"  # main URL
                 },
             ) as websocket:
                 async for message in websocket:
@@ -23,14 +25,13 @@ async def websocket_client(url, pro):
         except Exception as e:
             print(e)
             print("Connection lost... reconnecting")
-            # await anyio.sleep(5)
     return True
 
 
 async def pro(message, websocket, url):
-    # if byte data
-    if type(message) == type(b""):
-        # cut 100 first symbols of byte date to prevent spam
+    # Use isinstance for type checking
+    if isinstance(message, bytes):
+        # cut 100 first symbols of byte data to prevent spam
         print(str(message)[:100])
         return
     else:

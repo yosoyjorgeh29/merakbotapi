@@ -40,9 +40,7 @@ class EnhancedAPITester:
         logger.info("Testing Enhanced Connection with Monitoring")
         print("=" * 60)
 
-        client = AsyncPocketOptionClient(
-            session_id=self.session_id, is_demo=self.is_demo
-        )
+        client = AsyncPocketOptionClient(ssid=self.session_id, is_demo=self.is_demo)
 
         try:
             # Test connection with monitoring

@@ -3,6 +3,7 @@ import json
 import time
 import re
 import logging
+from typing import cast, List, Dict, Any
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from driver import get_driver
@@ -94,7 +95,12 @@ def get_pocketoption_ssid():
 
         # Retrieve performance logs which include network requests and WebSocket frames.
         # These logs are crucial for capturing the raw WebSocket messages.
-        performance_logs = driver.get_log("performance")
+        get_log = getattr(driver, "get_log", None)
+        if not callable(get_log):
+            raise AttributeError(
+                "Your WebDriver does not support get_log(). Make sure you are using Chrome with performance logging enabled."
+            )
+        performance_logs = cast(List[Dict[str, Any]], get_log("performance"))
         logger.info(f"Collected {len(performance_logs)} performance log entries.")
 
         found_full_ssid_string = None

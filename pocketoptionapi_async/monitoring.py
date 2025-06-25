@@ -63,11 +63,13 @@ class PerformanceMetrics:
 class CircuitBreaker:
     """Circuit breaker pattern implementation"""
 
+    from typing import Type
+
     def __init__(
         self,
         failure_threshold: int = 5,
         recovery_timeout: int = 60,
-        expected_exception: type = Exception,
+        expected_exception: Type[BaseException] = Exception,
     ):
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
@@ -79,7 +81,10 @@ class CircuitBreaker:
     async def call(self, func: Callable, *args, **kwargs):
         """Execute function with circuit breaker protection"""
         if self.state == "OPEN":
-            if time.time() - self.last_failure_time < self.recovery_timeout:
+            if (
+                self.last_failure_time is not None
+                and time.time() - self.last_failure_time < self.recovery_timeout
+            ):
                 raise Exception("Circuit breaker is OPEN")
             else:
                 self.state = "HALF_OPEN"
@@ -155,7 +160,10 @@ class RetryPolicy:
                 )
                 await asyncio.sleep(delay)
 
-        raise last_exception
+        if last_exception is not None:
+            raise last_exception
+        else:
+            raise Exception("RetryPolicy failed but no exception was captured.")
 
 
 class ErrorMonitor:
@@ -197,8 +205,8 @@ class ErrorMonitor:
         severity: ErrorSeverity,
         category: ErrorCategory,
         message: str,
-        context: Dict[str, Any] = None,
-        stack_trace: str = None,
+        context: Optional[Dict[str, Any]] = None,
+        stack_trace: Optional[str] = None,
     ):
         """Record an error event"""
         error_event = ErrorEvent(
@@ -208,7 +216,7 @@ class ErrorMonitor:
             category=category,
             message=message,
             context=context or {},
-            stack_trace=stack_trace,
+            stack_trace=stack_trace or "",
         )
 
         self.errors.append(error_event)
@@ -340,7 +348,7 @@ class ErrorMonitor:
                     "args": str(args)[:200],  # Truncate for security
                     "kwargs": str({k: str(v)[:100] for k, v in kwargs.items()})[:200],
                 },
-                stack_trace=None,  # Could add traceback.format_exc() here
+                stack_trace="",  # Could add traceback.format_exc() here
             )
 
             raise e

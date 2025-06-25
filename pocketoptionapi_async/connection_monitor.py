@@ -602,7 +602,7 @@ class ConnectionMonitor:
 
         return report
 
-    def export_metrics_csv(self, filename: str = None) -> str:
+    def export_metrics_csv(self, filename: str = "") -> str:
         """Export metrics to CSV file"""
         if not filename:
             filename = f"metrics_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
@@ -723,7 +723,7 @@ class RealTimeDisplay:
                 await asyncio.sleep(1)
 
 
-async def run_monitoring_demo(ssid: str = None):
+async def run_monitoring_demo(ssid: Optional[str] = None):
     """Run monitoring demonstration"""
 
     if not ssid:

@@ -6,7 +6,9 @@ Custom exceptions for the PocketOption API
 class PocketOptionError(Exception):
     """Base exception for all PocketOption API errors"""
 
-    def __init__(self, message: str, error_code: str = None):
+    from typing import Optional
+
+    def __init__(self, message: str, error_code: Optional[str] = None):
         super().__init__(message)
         self.message = message
         self.error_code = error_code

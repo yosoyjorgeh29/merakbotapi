@@ -7,12 +7,14 @@ import asyncio
 import time
 from datetime import datetime
 from loguru import logger
-
 from pocketoptionapi_async.client import AsyncPocketOptionClient
 from pocketoptionapi_async.models import TimeFrame
-from connection_keep_alive import ConnectionKeepAlive
-from connection_monitor import ConnectionMonitor
-from load_testing_tool import LoadTester, LoadTestConfig
+from pocketoptionapi_async.connection_keep_alive import ConnectionKeepAlive
+from pocketoptionapi_async.connection_monitor import ConnectionMonitor
+from tests.performance.load_testing_tool import (
+    LoadTester,
+    LoadTestConfig,
+)
 
 
 async def demo_ssid_format_support():

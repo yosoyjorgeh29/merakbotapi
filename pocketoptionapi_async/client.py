@@ -147,7 +147,7 @@ class AsyncPocketOptionClient:
         self._websocket.add_event_handler("disconnected", self._on_disconnected)
 
     async def connect(
-        self, regions: Optional[List[str]] = None, persistent: bool = None
+        self, regions: Optional[List[str]] = None, persistent: Optional[bool] = None
     ) -> bool:
         """
         Connect to PocketOption with multiple region support
@@ -162,7 +162,7 @@ class AsyncPocketOptionClient:
         logger.info("Connecting to PocketOption...")
         # Update persistent setting if provided
         if persistent is not None:
-            self.persistent_connection = persistent
+            self.persistent_connection = bool(persistent)
 
         try:
             if self.persistent_connection:
@@ -1181,39 +1181,31 @@ class AsyncPocketOptionClient:
             logger.info(f"🕯️ Candles received with data: {type(data)}")
         # Check if we have pending candle requests
         if hasattr(self, "_candle_requests") and self._candle_requests:
-            # Parse the candles data
             try:
-                # Get the first pending request to extract asset and timeframe info
                 for request_id, future in list(self._candle_requests.items()):
                     if not future.done():
-                        # Extract asset and timeframe from request_id format: "asset_timeframe"
                         parts = request_id.split("_")
                         if len(parts) >= 2:
-                            asset = "_".join(
-                                parts[:-1]
-                            )  # Handle assets with underscores
+                            asset = "_".join(parts[:-1])
                             timeframe = int(parts[-1])
-
-                            candles = self._parse_candles_data(data, asset, timeframe)
+                            candles = self._parse_candles_data(
+                                data.get("candles", []), asset, timeframe
+                            )
                             if self.enable_logging:
                                 logger.info(
                                     f"🕯️ Parsed {len(candles)} candles from response"
                                 )
-
                             future.set_result(candles)
                             if self.enable_logging:
                                 logger.debug(f"Resolved candle request: {request_id}")
                             break
-
             except Exception as e:
                 if self.enable_logging:
                     logger.error(f"Error processing candles data: {e}")
-                # Resolve futures with empty result
                 for request_id, future in list(self._candle_requests.items()):
                     if not future.done():
                         future.set_result([])
                         break
-
         await self._emit_event("candles_received", data)
 
     async def _on_disconnected(self, data: Dict[str, Any]) -> None:
@@ -1227,51 +1219,39 @@ class AsyncPocketOptionClient:
         try:
             asset = data.get("asset")
             period = data.get("period")
-
             if not asset or not period:
                 return
-
             request_id = f"{asset}_{period}"
-
             if self.enable_logging:
                 logger.info(f"🕯️ Processing candle stream for {asset} ({period}s)")
-
-            # Check if we have a pending request for this asset/period
             if (
                 hasattr(self, "_candle_requests")
                 and request_id in self._candle_requests
             ):
                 future = self._candle_requests[request_id]
-
                 if not future.done():
-                    # Parse candles from stream data
-                    candles = self._parse_stream_candles(data)
+                    candles = self._parse_stream_candles(data, asset, period)
                     if candles:
                         future.set_result(candles)
                         if self.enable_logging:
                             logger.info(
                                 f"🕯️ Resolved candle request for {asset} with {len(candles)} candles"
                             )
-
-                # Clean up the request
                 del self._candle_requests[request_id]
-
         except Exception as e:
             if self.enable_logging:
                 logger.error(f"Error handling candles stream: {e}")
 
-    def _parse_stream_candles(self, stream_data: Dict[str, Any]):
+    def _parse_stream_candles(
+        self, stream_data: Dict[str, Any], asset: str, timeframe: int
+    ):
         """Parse candles from stream update data (changeSymbol response)"""
         candles = []
-
         try:
-            # Stream data might contain candles in different formats
             candle_data = stream_data.get("data") or stream_data.get("candles") or []
-
             if isinstance(candle_data, list):
                 for item in candle_data:
                     if isinstance(item, dict):
-                        # Dict format
                         candle = Candle(
                             timestamp=datetime.fromtimestamp(item.get("time", 0)),
                             open=float(item.get("open", 0)),
@@ -1279,10 +1259,11 @@ class AsyncPocketOptionClient:
                             low=float(item.get("low", 0)),
                             close=float(item.get("close", 0)),
                             volume=float(item.get("volume", 0)),
+                            asset=asset,
+                            timeframe=timeframe,
                         )
                         candles.append(candle)
                     elif isinstance(item, (list, tuple)) and len(item) >= 6:
-                        # Array format: [timestamp, open, close, high, low, volume]
                         candle = Candle(
                             timestamp=datetime.fromtimestamp(item[0]),
                             open=float(item[1]),
@@ -1290,16 +1271,14 @@ class AsyncPocketOptionClient:
                             low=float(item[4]),
                             close=float(item[2]),
                             volume=float(item[5]) if len(item) > 5 else 0.0,
+                            asset=asset,
+                            timeframe=timeframe,
                         )
                         candles.append(candle)
-
-            # Sort by timestamp
             candles.sort(key=lambda x: x.timestamp)
-
         except Exception as e:
             if self.enable_logging:
                 logger.error(f"Error parsing stream candles: {e}")
-
         return candles
 
     async def _on_keep_alive_connected(self):

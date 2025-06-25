@@ -13,7 +13,7 @@ from loguru import logger
 
 from pocketoptionapi_async.client import AsyncPocketOptionClient
 from pocketoptionapi_async.models import OrderDirection, TimeFrame
-from connection_keep_alive import ConnectionKeepAlive
+from pocketoptionapi_async.connection_keep_alive import ConnectionKeepAlive
 
 
 class AdvancedTestSuite:

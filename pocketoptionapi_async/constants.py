@@ -178,8 +178,10 @@ class Regions:
         """Get all regions as a dictionary"""
         return cls._REGIONS.copy()
 
+    from typing import Optional
+
     @classmethod
-    def get_region(cls, region_name: str) -> str:
+    def get_region(cls, region_name: str) -> Optional[str]:
         """Get specific region URL"""
         return cls._REGIONS.get(region_name.upper())
 
