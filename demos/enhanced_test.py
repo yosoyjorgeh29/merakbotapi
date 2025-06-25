@@ -41,7 +41,7 @@ class EnhancedAPITester:
         print("=" * 60)
 
         client = AsyncPocketOptionClient(
-            session_id=self.session_id, is_demo=self.is_demo
+            ssid=self.session_id, is_demo=self.is_demo
         )
 
         try:
