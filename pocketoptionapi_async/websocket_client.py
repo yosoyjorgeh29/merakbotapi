@@ -143,6 +143,7 @@ class AsyncWebSocketClient:
             "40": self._handle_connection_message,
             "451-[": self._handle_json_message_wrapper,
             "42": self._handle_auth_message,
+            "[[5,": self._handle_payout_message,
         }
 
     async def connect(self, urls: List[str], ssid: str) -> bool:
@@ -209,6 +210,86 @@ class AsyncWebSocketClient:
                 continue
 
         raise ConnectionError("Failed to connect to any WebSocket endpoint")
+
+    async def _handle_payout_message(self, message: str) -> None:
+        """
+        Handles messages related to asset payout information.
+        These messages are typically in the format `[[5, [...]]]`.
+        The payout percentage is located at index 5 within the inner list.
+
+        Args:
+            message: The raw WebSocket message string containing payout data.
+        """
+        try:
+            # The message starts with "[[5," and is a JSON string.
+            # We need to parse it as JSON.
+            # Example: [[5, ["5", "#AAPL", "Apple", "stock", 2, 50, ...]]]
+            # The structure is a list containing a list, where the first element
+            # of the inner list is '5' (indicating payout data), and the rest is the data.
+
+            # Remove the initial '[[5,' and the final ']]' and parse the remaining as JSON.
+            # A more robust way is to find the first '[' and last ']' of the actual JSON array.
+
+            # Find the start of the actual JSON array data
+            json_start_index = message.find("[", message.find("[") + 1)
+            # Find the end of the actual JSON array data
+            json_end_index = message.rfind("]")
+
+            if json_start_index == -1 or json_end_index == -1:
+                logger.warning(
+                    f"Could not find valid JSON array in payout message: {message[:100]}..."
+                )
+                return
+
+            # Extract the inner JSON string that represents the array of arrays
+            json_str = message[json_start_index : json_end_index + 1]
+
+            # Parse the extracted JSON string
+            data: List[List[Any]] = json.loads(json_str)
+
+            # Iterate through each asset's payout information
+            for asset_data in data:
+                # Ensure the asset_data is a list and has enough elements
+                if isinstance(asset_data, list) and len(asset_data) > 5:
+                    try:
+                        # Extract relevant information
+                        asset_id = asset_data[0]
+                        asset_symbol = asset_data[1]
+                        asset_name = asset_data[2]
+                        asset_type = asset_data[3]
+                        payout_percentage = asset_data[5]  # Payout is at index 5
+
+                        payout_info = {
+                            "id": asset_id,
+                            "symbol": asset_symbol,
+                            "name": asset_name,
+                            "type": asset_type,
+                            "payout": payout_percentage,
+                        }
+                        logger.debug(f"Parsed payout info: {payout_info}")
+                        # Emit an event with the parsed payout data
+                        await self._emit_event("payout_update", payout_info)
+                    except IndexError:
+                        logger.warning(
+                            f"Payout message element missing for asset_data: {asset_data}"
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Error processing individual asset payout data {asset_data}: {e}"
+                        )
+                else:
+                    logger.warning(
+                        f"Unexpected format for asset payout data: {asset_data}"
+                    )
+
+        except json.JSONDecodeError as e:
+            logger.error(
+                f"Failed to decode JSON from payout message '{message[:100]}...': {e}"
+            )
+        except Exception as e:
+            logger.error(
+                f"Error in _handle_payout_message for message '{message[:100]}...': {e}"
+            )
 
     async def disconnect(self):
         """Gracefully disconnect from WebSocket"""

@@ -11,7 +11,10 @@ from pocketoptionapi_async.client import AsyncPocketOptionClient
 from pocketoptionapi_async.models import TimeFrame
 from pocketoptionapi_async.connection_keep_alive import ConnectionKeepAlive
 from pocketoptionapi_async.connection_monitor import ConnectionMonitor
-from tests.performance.load_testing_tool import LoadTester, LoadTestConfig # why wont this work mannn
+from tests.performance.load_testing_tool import (
+    LoadTester,
+    LoadTestConfig,
+)
 
 
 async def demo_ssid_format_support():
